@@ -1,5 +1,14 @@
 import { useRef, useState } from "react";
-import { Check, CloudUpload, FileImage, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
+import {
+  Check,
+  CloudUpload,
+  FileImage,
+  ImagePlus,
+  Info,
+  LoaderCircle,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 type PhotoSummary = { name: string; bytes?: number; example: boolean };
 type Props = {
@@ -10,7 +19,13 @@ type Props = {
   onRemove: () => void;
 };
 
-export default function PhotoUploadPanel({ photo, status, storageMessage, onFile, onRemove }: Props) {
+export default function PhotoUploadPanel({
+  photo,
+  status,
+  storageMessage,
+  onFile,
+  onRemove,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [localError, setLocalError] = useState("");
@@ -28,22 +43,42 @@ export default function PhotoUploadPanel({ photo, status, storageMessage, onFile
     const file = event.dataTransfer.files[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setLocalError("That doesn’t look like an image. Try a JPEG, PNG, or WebP.");
+      setLocalError(
+        "That doesn’t look like an image. Try a JPEG, PNG, or WebP."
+      );
       return;
     }
     chooseFile(file);
   }
 
-  const storageFailed = status === "error" || storageMessage.includes("could not be saved");
+  const storageFailed =
+    status === "error" && /storage|upload|transfer/i.test(storageMessage);
 
   return (
     <section className="upload-panel" aria-labelledby="upload-heading">
-      <div className="upload-panel-title"><span id="upload-heading">YOUR ORIGINAL</span>{photo && !photo.example && <button className="remove-photo" onClick={onRemove} aria-label="Remove photo"><Trash2 size={14} /></button>}</div>
+      <div className="upload-panel-title">
+        <span id="upload-heading">YOUR ORIGINAL</span>
+        {photo && !photo.example && (
+          <button
+            className="remove-photo"
+            onClick={onRemove}
+            aria-label="Remove photo"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
       <div
         className={`dropzone ${dragging ? "dragging" : ""} ${photo && !photo.example ? "has-upload" : ""}`}
-        onDragEnter={event => { event.preventDefault(); setDragging(true); }}
+        onDragEnter={event => {
+          event.preventDefault();
+          setDragging(true);
+        }}
         onDragOver={event => event.preventDefault()}
-        onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+        onDragLeave={event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            setDragging(false);
+        }}
         onDrop={handleDrop}
       >
         <input
@@ -56,28 +91,89 @@ export default function PhotoUploadPanel({ photo, status, storageMessage, onFile
         />
         {photo && !photo.example ? (
           <>
-            <div className="file-avatar"><FileImage size={18} /></div>
-            <div className="upload-file-info"><strong title={photo.name}>{photo.name}</strong><span>{photo.bytes ? `${(photo.bytes / (1024 * 1024)).toFixed(photo.bytes < 1048576 ? 2 : 1)} MB` : "Your photo"}</span></div>
-            <button className="replace-button" onClick={() => inputRef.current?.click()}><Upload size={14} /> Replace</button>
+            <div className="file-avatar">
+              <FileImage size={18} />
+            </div>
+            <div className="upload-file-info">
+              <strong title={photo.name}>{photo.name}</strong>
+              <span>
+                {photo.bytes
+                  ? `${(photo.bytes / (1024 * 1024)).toFixed(photo.bytes < 1048576 ? 2 : 1)} MB`
+                  : "Your photo"}
+              </span>
+            </div>
+            <button
+              className="replace-button"
+              onClick={() => inputRef.current?.click()}
+            >
+              <Upload size={14} /> Replace
+            </button>
           </>
         ) : (
           <>
-            <div className="drop-icon"><CloudUpload size={21} /></div>
-            <div className="drop-copy"><strong>Drop a photo here</strong><span>or choose one from your device</span></div>
-            <button className="browse-button" onClick={() => inputRef.current?.click()}><ImagePlus size={15} /> Browse files</button>
-            <p className="file-types">JPEG, PNG or WebP <i /> Up to 15 MB</p>
+            <div className="drop-icon">
+              <CloudUpload size={21} />
+            </div>
+            <div className="drop-copy">
+              <strong>Drop a photo here</strong>
+              <span>or choose one from your device</span>
+            </div>
+            <button
+              className="browse-button"
+              onClick={() => inputRef.current?.click()}
+            >
+              <ImagePlus size={15} /> Browse files
+            </button>
+            <p className="file-types">
+              JPEG, PNG or WebP <i /> Up to 15 MB
+            </p>
           </>
         )}
-        {dragging && <div className="drop-overlay"><Upload size={19} /> Release to add your photo</div>}
+        {dragging && (
+          <div className="drop-overlay">
+            <Upload size={19} /> Release to add your photo
+          </div>
+        )}
       </div>
-      {localError && <div className="upload-error" role="alert">{localError}</div>}
-      {photo && !photo.example && (
-        <div className={`storage-state ${status === "uploading" ? "in-progress" : status === "ready" ? "stored" : storageFailed ? "storage-error" : ""}`} role="status">
-          {status === "uploading" ? <LoaderCircle size={14} className="spin" /> : status === "ready" ? <Check size={14} /> : storageFailed ? <CloudUpload size={14} /> : <FileImage size={14} />}
-          <span>{storageMessage || (status === "ready" ? "Saved to project storage" : "Ready to restore")}</span>
+      {localError && (
+        <div className="upload-error" role="alert">
+          {localError}
         </div>
       )}
-      {photo?.example && <div className="sample-file-line"><span className="sample-mini-dot" /> An example is open — add your own</div>}
+      {photo && !photo.example && (
+        <div
+          className={`storage-state ${status === "uploading" ? "in-progress" : status === "ready" ? "stored" : storageFailed ? "storage-error" : ""}`}
+          role="status"
+        >
+          {status === "uploading" ? (
+            <LoaderCircle size={14} className="spin" />
+          ) : status === "ready" || status === "complete" ? (
+            <Check size={14} />
+          ) : storageFailed ? (
+            <CloudUpload size={14} />
+          ) : (
+            <FileImage size={14} />
+          )}
+          <span>
+            {storageMessage ||
+              (status === "ready" || status === "complete"
+                ? "Saved to project storage"
+                : "Ready to colorize")}
+          </span>
+        </div>
+      )}
+      {photo?.example && (
+        <div className="sample-file-line">
+          <span className="sample-mini-dot" /> An example is open — add your own
+        </div>
+      )}
+      <p className="photo-privacy-note">
+        <Info size={13} aria-hidden="true" />
+        <span>
+          No sign-in is provided. Colorizing sends your photo to AI, and
+          project-storage links aren’t private per user. Avoid sensitive photos.
+        </span>
+      </p>
     </section>
   );
 }
