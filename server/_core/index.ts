@@ -7,6 +7,7 @@ import { publicPlatformScript } from "./publicConfig";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { registerPhotoUploadRoute } from "../photoUpload";
 
 async function startServer() {
   const app = express();
@@ -18,6 +19,7 @@ async function startServer() {
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
   });
+  registerPhotoUploadRoute(app);
   registerOAuthRoutes(app);
   // tRPC API
   app.use(
