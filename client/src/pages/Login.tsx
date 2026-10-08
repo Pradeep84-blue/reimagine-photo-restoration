@@ -9,6 +9,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { formatAuthValidationError } from "@/lib/authErrors";
 import { trpc } from "@/lib/trpc";
 
 export default function Login() {
@@ -33,17 +34,23 @@ export default function Login() {
   };
   const login = trpc.auth.login.useMutation({
     onSuccess: finish,
-    onError: mutationError => setError(mutationError.message),
+    onError: mutationError =>
+      setError(formatAuthValidationError(mutationError)),
   });
   const register = trpc.auth.register.useMutation({
     onSuccess: finish,
-    onError: mutationError => setError(mutationError.message),
+    onError: mutationError =>
+      setError(formatAuthValidationError(mutationError)),
   });
   const busy = login.isPending || register.isPending;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    if (password.length < 12) {
+      setError("Password must be at least 12 characters.");
+      return;
+    }
     if (mode === "signup") register.mutate({ email, password });
     else login.mutate({ email, password });
   }
@@ -126,10 +133,14 @@ export default function Login() {
                 mode === "signup" ? "At least 12 characters" : "Your password"
               }
               value={password}
-              onChange={event => setPassword(event.currentTarget.value)}
+              onChange={event => {
+                setPassword(event.currentTarget.value);
+                if (error) setError("");
+              }}
               required
-              minLength={mode === "signup" ? 12 : 1}
               maxLength={128}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "auth-form-error" : undefined}
             />
             <button
               type="button"
@@ -143,7 +154,7 @@ export default function Login() {
             </button>
           </div>
           {error && (
-            <p className="form-error" role="alert">
+            <p id="auth-form-error" className="form-error" role="alert">
               {error}
             </p>
           )}
