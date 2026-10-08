@@ -360,10 +360,11 @@ p {
   width: 100%;
   aspect-ratio: 1.53 / 1;
   overflow: hidden;
-  background: #e4dfd5;
+  background: linear-gradient(135deg, #efede6, #e4dfd5);
 }
 .compare-canvas {
   isolation: isolate;
+  aspect-ratio: var(--photo-ratio, 4 / 3);
   border-radius: 4px;
 }
 .compare-canvas > .image-frame,
@@ -382,7 +383,7 @@ p {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   user-select: none;
 }
 .original-view .photo-image {
@@ -516,7 +517,7 @@ p {
   position: relative;
 }
 .side-photo .image-frame {
-  aspect-ratio: 1.04 / 1;
+  aspect-ratio: var(--photo-ratio, 4 / 3);
   border-radius: 4px;
 }
 .side-photo .photo-label {
@@ -1105,57 +1106,6 @@ p {
     transform: rotate(360deg);
   }
 }
-.how-section {
-  margin-top: 33px;
-  padding: 17px 0 20px;
-  border-top: 1px solid #e4e0d7;
-}
-.how-heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #777d73;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-}
-.how-rule {
-  height: 1px;
-  flex: 1;
-  background: #e5e1d8;
-}
-.how-steps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 25px;
-  padding: 16px 2px 2px;
-}
-.how-step {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.how-step-number {
-  padding-top: 1px;
-  color: #c56b52;
-  font:
-    600 16px/1 "Fraunces",
-    Georgia,
-    serif;
-}
-.how-step h3 {
-  margin: 0 0 4px;
-  color: #454b44;
-  font-size: 10px;
-  font-weight: 700;
-}
-.how-step p {
-  max-width: 240px;
-  margin: 0;
-  color: #858980;
-  font-size: 9px;
-  line-height: 1.6;
-}
 .page-footer {
   min-height: 52px;
   display: flex;
@@ -1285,12 +1235,6 @@ p {
     padding: 0 6px;
     font-size: 8px;
   }
-  .compare-canvas {
-    aspect-ratio: 1.13 / 1;
-  }
-  .side-photo .image-frame {
-    aspect-ratio: 0.89 / 1;
-  }
   .photo-label {
     top: 8px;
     padding: 5px 6px;
@@ -1326,17 +1270,6 @@ p {
   .rail-footnote {
     grid-column: auto;
     margin-top: -3px;
-  }
-  .how-section {
-    margin-top: 25px;
-  }
-  .how-steps {
-    grid-template-columns: 1fr;
-    gap: 13px;
-    padding-top: 14px;
-  }
-  .how-step p {
-    max-width: none;
   }
   .page-footer {
     min-height: 52px;

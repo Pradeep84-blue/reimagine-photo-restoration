@@ -283,22 +283,18 @@ export default function Home() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="ChromaLab home">
+        <a className="brand" href="#top" aria-label="Reimagine home">
           <span className="brand-symbol" aria-hidden="true">
             <Aperture size={23} strokeWidth={1.7} />
             <i />
           </span>
           <span className="brand-name">
-            chroma<span>lab</span>
-            <sup>®</sup>
+            re<span>imagine</span>
           </span>
         </a>
         <nav className="top-nav" aria-label="Main navigation">
           <a className="nav-link active" href="#studio">
             Studio
-          </a>
-          <a className="nav-link" href="#how-it-works">
-            How it works
           </a>
         </nav>
         <div className="top-note">
@@ -543,38 +539,9 @@ export default function Home() {
           </aside>
         </section>
 
-        <section className="how-section" id="how-it-works">
-          <div className="how-heading">
-            <span>THE RESTORATION RITUAL</span>
-            <span className="how-rule" />
-          </div>
-          <div className="how-steps">
-            <article className="how-step">
-              <span className="how-step-number">01</span>
-              <div>
-                <h3>Choose a memory</h3>
-                <p>Drop in a JPEG, PNG, or WebP up to 15 MB.</p>
-              </div>
-            </article>
-            <article className="how-step">
-              <span className="how-step-number">02</span>
-              <div>
-                <h3>Explore the color</h3>
-                <p>Move the divider or see both views side by side.</p>
-              </div>
-            </article>
-            <article className="how-step">
-              <span className="how-step-number">03</span>
-              <div>
-                <h3>Keep a copy</h3>
-                <p>Save your preview as a PNG whenever you’re ready.</p>
-              </div>
-            </article>
-          </div>
-        </section>
         <footer className="page-footer">
           <a className="footer-brand" href="#top">
-            <Aperture size={16} /> chromalab
+            <Aperture size={16} /> reimagine
           </a>
           <span>Old photos, seen with new eyes.</span>
           <a href="#top" className="back-top">

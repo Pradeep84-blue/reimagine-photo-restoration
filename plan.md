@@ -1,4 +1,4 @@
-# ChromaLab — approved implementation plan
+# Reimagine — approved implementation plan
 
 ## Product scope
 
@@ -10,6 +10,7 @@ The user-upload path uses the project's built-in ImageService to colorize the se
 
 - Build on the initialized React 19 + TypeScript + Vite client and starter Express server; no database or user-account system is required for this interface.
 - Implement the Studio screen as focused React components and local state: upload/validation, image preview, colorization progress/status, comparison modes, and download. Use native file input and keyboard-accessible controls, responsive layout, and reduced-motion-aware transitions.
+- Rebrand the visible app as Reimagine and remove the “How it works” section plus its navigation link. Keep the one-page studio focused; make the comparison canvas follow the original photo’s intrinsic aspect ratio and render with `object-fit: contain` in slider and side-by-side modes so the whole photo remains visible.
 - The same-origin server validates JPEG/PNG/WebP MIME and file signatures and enforces the 15 MB request ceiling. It stores the original under a collision-resistant project-storage key, then—only after the user selects colorize—sends the supplied bytes to ImageService using server-only platform credentials. Confirm GPT Image 2 is available from `ListModels` before invoking it; validate the returned image and store the model result under a distinct randomized key before displaying/downloading it. Keep the API credential and presigned object URLs on the server; return the image bytes only to the initiating browser and the stable storage path in a response header. No project database or user-account system means the app will not claim per-user ownership, asset listing, or deletion/retention controls.
 - Keep the API endpoint and UI in one origin. Enable the confirmed Server capability with the database off, and use the starter's server-backed development command on its configured port.
 - Serve `/manus-routes.json` with the single `/` page route before starting the server.
@@ -38,9 +39,9 @@ The user-upload path uses the project's built-in ImageService to colorize the se
 - **Interaction Philosophy**: Gentle, direct manipulation. Drop or choose a photo, see it immediately, start processing explicitly, scrub the comparison, and download only when a result is ready. State that the model infers color and ask users to review skin tones honestly.
 - **Animation**: Short 160–220ms fades/slides for small state transitions; a smooth progress fill for processing; no perpetual movement; disable or reduce transitions when `prefers-reduced-motion` is set.
 - **Typography System**: Fraunces for expressive editorial display headings and DM Sans for labels, controls, and supporting copy; compact uppercase kickers, readable body size, clear numerical/status labels.
-- **Brand Essence**: A small creative restoration studio for people bringing family and archival photographs back to life; **thoughtful, luminous, reassuring**.
+- **Brand Essence**: Reimagine is a small creative restoration studio for people bringing family and archival photographs back to life; **thoughtful, luminous, reassuring**.
 - **Brand Voice**: Warm and plainspoken; guide rather than oversell. Example lines: “A little color, a lot of history.” and “Your original stays untouched.”
-- **Wordmark & Logo**: “ChromaLab” wordmark paired with a custom aperture/half-tone mark: one split circular lens whose monochrome half opens into three color rays.
+- **Wordmark & Logo**: “Reimagine” wordmark paired with the existing aperture/half-tone mark: one split circular lens whose monochrome half opens into three color rays.
 - **Signature Brand Color**: Persimmon coral (`#E66D50`), a warm restoration cue distinct from generic AI blue/purple.
 
 ## Dependencies and constraints

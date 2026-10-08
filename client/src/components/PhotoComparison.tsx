@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Columns3, MoveHorizontal } from "lucide-react";
 
 type Props = {
@@ -41,20 +42,43 @@ export default function PhotoComparison({
   onComparisonChange,
   viewMode,
 }: Props) {
+  const [aspectRatio, setAspectRatio] = useState(4 / 3);
   const colorSource = photo.resultSrc || photo.src;
+  useEffect(() => {
+    let active = true;
+    const image = new Image();
+    image.onload = () => {
+      if (active && image.naturalWidth && image.naturalHeight) {
+        setAspectRatio(image.naturalWidth / image.naturalHeight);
+      }
+    };
+    image.onerror = () => {
+      if (active) setAspectRatio(4 / 3);
+    };
+    image.src = photo.src;
+    return () => {
+      active = false;
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [photo.src]);
+  const frameStyle = {
+    "--photo-ratio": `${aspectRatio} / 1`,
+  } as React.CSSProperties;
+
   if (viewMode === "side") {
     return (
       <div
         className="side-comparison"
         aria-label="Original and colorized photo side by side"
       >
-        <div className="side-photo">
+        <div className="side-photo" style={frameStyle}>
           <ImageView src={photo.src} name={photo.name} colorized={false} />
           <span className="photo-label">
             <i className="label-dot monochrome" /> ORIGINAL
           </span>
         </div>
-        <div className="side-photo">
+        <div className="side-photo" style={frameStyle}>
           <ImageView src={colorSource} name={photo.name} colorized={ready} />
           <span className="photo-label">
             <i className="label-dot color-dot" /> COLORIZED RESULT
@@ -80,7 +104,9 @@ export default function PhotoComparison({
     >
       <div
         className="compare-canvas"
-        style={{ "--split": `${comparison}%` } as React.CSSProperties}
+        style={
+          { ...frameStyle, "--split": `${comparison}%` } as React.CSSProperties
+        }
       >
         <ImageView src={photo.src} name={photo.name} colorized={false} />
         <div

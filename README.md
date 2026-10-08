@@ -1,6 +1,6 @@
-# ChromaLab
+# Reimagine
 
-A responsive photo-restoration studio for colorizing black-and-white photographs. ChromaLab pairs an editorial workbench with a server-side image-model workflow, an interactive before/after comparison, and PNG export.
+A responsive photo-restoration studio for colorizing black-and-white photographs. Reimagine pairs an editorial workbench with a server-side image-model workflow, an interactive before/after comparison, and PNG export.
 
 ## Features
 
