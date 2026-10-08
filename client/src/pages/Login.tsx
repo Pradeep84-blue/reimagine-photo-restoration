@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   Aperture,
   ArrowRight,
+  Eye,
+  EyeOff,
   LoaderCircle,
   Mail,
   LockKeyhole,
@@ -16,6 +18,7 @@ export default function Login() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -114,7 +117,8 @@ export default function Login() {
             <LockKeyhole size={16} aria-hidden="true" />
             <input
               id="account-password"
-              type="password"
+              className="auth-password-input"
+              type={showPassword ? "text" : "password"}
               autoComplete={
                 mode === "signup" ? "new-password" : "current-password"
               }
@@ -127,6 +131,16 @@ export default function Login() {
               minLength={mode === "signup" ? 12 : 1}
               maxLength={128}
             />
+            <button
+              type="button"
+              className="password-visibility-toggle"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              aria-controls="account-password"
+              onClick={() => setShowPassword(value => !value)}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
           {error && (
             <p className="form-error" role="alert">
@@ -143,10 +157,6 @@ export default function Login() {
             {!busy && <ArrowRight size={16} />}
           </button>
         </form>
-        <p className="auth-footnote">
-          Password recovery email isn’t enabled. You can change your password
-          from Account while signed in.
-        </p>
         <p className="auth-caption">A little color, a lot of history.</p>
       </section>
     </main>

@@ -1,5 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { Check, KeyRound, LoaderCircle, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LoaderCircle,
+  ShieldCheck,
+} from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { trpc } from "@/lib/trpc";
 
@@ -8,6 +15,8 @@ export default function Account() {
   const { data: user } = trpc.auth.me.useQuery();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const update = trpc.auth.changePassword.useMutation({
@@ -75,26 +84,58 @@ export default function Account() {
           </div>
           <form className="settings-form" onSubmit={submit}>
             <label htmlFor="current-password">Current password</label>
-            <input
-              id="current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={event => setCurrentPassword(event.currentTarget.value)}
-              required
-              maxLength={128}
-            />
+            <div className="settings-password-wrap">
+              <input
+                id="current-password"
+                type={showCurrentPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={event =>
+                  setCurrentPassword(event.currentTarget.value)
+                }
+                required
+                maxLength={128}
+              />
+              <button
+                type="button"
+                className="password-visibility-toggle"
+                aria-label={
+                  showCurrentPassword
+                    ? "Hide current password"
+                    : "Show current password"
+                }
+                aria-pressed={showCurrentPassword}
+                aria-controls="current-password"
+                onClick={() => setShowCurrentPassword(value => !value)}
+              >
+                {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
             <label htmlFor="new-password">New password</label>
-            <input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={event => setNewPassword(event.currentTarget.value)}
-              required
-              minLength={12}
-              maxLength={128}
-            />
+            <div className="settings-password-wrap">
+              <input
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={event => setNewPassword(event.currentTarget.value)}
+                required
+                minLength={12}
+                maxLength={128}
+              />
+              <button
+                type="button"
+                className="password-visibility-toggle"
+                aria-label={
+                  showNewPassword ? "Hide new password" : "Show new password"
+                }
+                aria-pressed={showNewPassword}
+                aria-controls="new-password"
+                onClick={() => setShowNewPassword(value => !value)}
+              >
+                {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
             <span className="field-hint">Use at least 12 characters.</span>
             {error && (
               <p className="form-error" role="alert">
@@ -118,10 +159,6 @@ export default function Account() {
               Update password
             </button>
           </form>
-          <p className="account-recovery-note">
-            Password recovery email isn’t enabled. Keep your current password
-            safe so you don’t lose access.
-          </p>
         </section>
       </main>
       <footer className="page-footer account-footer">
