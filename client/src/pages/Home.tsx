@@ -1,23 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Aperture,
   ArrowDownToLine,
   ArrowRight,
+  Aperture,
   BadgeCheck,
   Check,
   ChevronRight,
   CircleAlert,
-  Clock3,
   Columns3,
   FileImage,
   ImagePlus,
   LoaderCircle,
-  LockKeyhole,
   PanelTop,
   Sparkles,
 } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
+import BatchColorizer from "@/components/BatchColorizer";
 import PhotoComparison from "@/components/PhotoComparison";
 import PhotoUploadPanel from "@/components/PhotoUploadPanel";
+import {
+  colorizePhoto,
+  fetchPrivatePhoto,
+  type ColorStyle,
+} from "@/lib/photoApi";
+import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
 
 const SAMPLE_IMAGE = "/images/demo-before.jpg";
 const SAMPLE_RESULT_IMAGE = "/images/demo-after.jpg";
@@ -29,69 +36,22 @@ type Photo = {
   bytes?: number;
   example: boolean;
   blobUrl?: string;
-  storageUrl?: string;
   resultSrc?: string;
+  historyId?: string;
+  style?: ColorStyle;
 };
-type WorkStatus =
-  | "empty"
-  | "uploading"
-  | "ready"
-  | "processing"
-  | "complete"
-  | "error";
+type WorkStatus = "empty" | "ready" | "processing" | "complete" | "error";
 type ViewMode = "compare" | "side";
 
 function prettyBytes(bytes?: number) {
-  if (!bytes) return "Example photo";
-  return `${(bytes / (1024 * 1024)).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`;
-}
-
-async function uploadPhotoBlob(blob: Blob, contentType: string) {
-  const response = await fetch("/api/photos/upload", {
-    method: "POST",
-    headers: { "Content-Type": contentType, "X-Photo-Kind": "original" },
-    body: blob,
-  });
-  const data = (await response.json().catch(() => ({}))) as {
-    assetUrl?: string;
-    error?: string;
-  };
-  if (!response.ok || !data.assetUrl) {
-    throw new Error(
-      data.error ||
-        (response.status === 413
-          ? "Image must be 15 MB or smaller."
-          : "Project file storage is unavailable right now.")
-    );
-  }
-  return data.assetUrl;
-}
-
-async function requestColorization(photo: Blob) {
-  const response = await fetch("/api/photos/colorize", {
-    method: "POST",
-    headers: { "Content-Type": photo.type },
-    body: photo,
-  });
-  if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new Error(
-      data.error || "Colorization could not be completed. Please try again."
-    );
-  }
-  const resultBlob = await response.blob();
-  const storageUrl = response.headers.get("X-Photo-Asset-Url");
-  if (!resultBlob.size || !storageUrl)
-    throw new Error(
-      "The colorized result could not be loaded. Please try again."
-    );
-  return resultBlob;
+  return bytes
+    ? `${(bytes / (1024 * 1024)).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`
+    : "Example photo";
 }
 
 export default function Home() {
-  const [photo, setPhoto] = useState<Photo | null>({
+  const utils = trpc.useUtils();
+  const [photo, setPhoto] = useState<Photo>({
     src: SAMPLE_IMAGE,
     name: "An afternoon by the lake",
     example: true,
@@ -100,210 +60,181 @@ export default function Home() {
   const [status, setStatus] = useState<WorkStatus>("complete");
   const [comparison, setComparison] = useState(53);
   const [viewMode, setViewMode] = useState<ViewMode>("compare");
-  const [progress, setProgress] = useState(0);
+  const [style, setStyle] = useState<ColorStyle>("natural");
   const [errorMessage, setErrorMessage] = useState("");
-  const [storageMessage, setStorageMessage] = useState("");
-  const [downloaded, setDownloaded] = useState(false);
-  const requestId = useRef(0);
+  const [message, setMessage] = useState("");
   const objectUrls = useRef(new Set<string>());
+  const requestId = useRef(0);
+  const [location] = useLocation();
 
   useEffect(
-    () => () => {
-      objectUrls.current.forEach(url => URL.revokeObjectURL(url));
-      objectUrls.current.clear();
-    },
+    () => () => objectUrls.current.forEach(url => URL.revokeObjectURL(url)),
     []
   );
-
-  function releasePhotoUrls(current: Photo | null) {
-    for (const url of [current?.blobUrl, current?.resultSrc]) {
-      if (url && objectUrls.current.delete(url)) URL.revokeObjectURL(url);
-    }
+  function clearUrl(url?: string) {
+    if (url && objectUrls.current.delete(url)) URL.revokeObjectURL(url);
   }
 
-  async function handleFile(file: File) {
+  useEffect(() => {
+    const savedId = new URLSearchParams(window.location.search).get("photo");
+    if (!savedId) return;
+    const requestNumber = ++requestId.current;
+    setMessage("Opening your saved photo…");
     setErrorMessage("");
-    setStorageMessage("");
-    setDownloaded(false);
+    void (async () => {
+      try {
+        const saved = await utils.library.list.fetch({
+          search: "",
+          sort: "newest",
+          favoritesOnly: false,
+        });
+        const record = saved.find(item => item.id === savedId);
+        if (!record)
+          throw new Error("This photo is no longer in your history.");
+        const [original, result] = await Promise.all([
+          fetchPrivatePhoto(record.id, "original"),
+          fetchPrivatePhoto(record.id, "colorized"),
+        ]);
+        if (requestId.current !== requestNumber) return;
+        const originalUrl = URL.createObjectURL(original);
+        const resultUrl = URL.createObjectURL(result);
+        objectUrls.current.add(originalUrl);
+        objectUrls.current.add(resultUrl);
+        setPhoto({
+          src: originalUrl,
+          name: record.title,
+          bytes: original.size,
+          example: false,
+          blobUrl: originalUrl,
+          resultSrc: resultUrl,
+          historyId: record.id,
+          style: record.style,
+        });
+        setStyle(record.style);
+        setStatus("complete");
+        setMessage("Saved photo opened from your history.");
+        window.history.replaceState(null, "", window.location.pathname);
+      } catch (error) {
+        if (requestId.current !== requestNumber) return;
+        setStatus("error");
+        setMessage("");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "This saved photo could not be opened."
+        );
+      }
+    })();
+    return () => {
+      if (requestId.current === requestNumber) requestId.current += 1;
+    };
+  }, [location, utils.library.list]);
+
+  function handleRemove() {
+    requestId.current += 1;
+    clearUrl(photo.blobUrl);
+    clearUrl(photo.resultSrc);
+    setPhoto({
+      src: SAMPLE_IMAGE,
+      name: "An afternoon by the lake",
+      example: true,
+      resultSrc: SAMPLE_RESULT_IMAGE,
+    });
+    setStatus("complete");
+    setErrorMessage("");
+    setMessage("");
+  }
+
+  function handleFile(file: File) {
+    setErrorMessage("");
+    setMessage("");
     if (!ALLOWED_TYPES.includes(file.type)) {
       setErrorMessage("Choose a JPEG, PNG, or WebP image to continue.");
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
-      setErrorMessage(
-        "This image is larger than 15 MB. Choose a smaller file."
-      );
+    if (!file.size || file.size > MAX_FILE_BYTES) {
+      setErrorMessage("Each image must be non-empty and 15 MB or smaller.");
       return;
     }
-    const id = ++requestId.current;
-    releasePhotoUrls(photo);
-    const localUrl = URL.createObjectURL(file);
-    objectUrls.current.add(localUrl);
+    requestId.current += 1;
+    clearUrl(photo.blobUrl);
+    clearUrl(photo.resultSrc);
+    const url = URL.createObjectURL(file);
+    objectUrls.current.add(url);
     setPhoto({
-      src: localUrl,
+      src: url,
       name: file.name,
       bytes: file.size,
       example: false,
-      blobUrl: localUrl,
+      blobUrl: url,
     });
-    setStatus("uploading");
-    setProgress(0);
-
-    try {
-      const storageUrl = await uploadPhotoBlob(file, file.type);
-      if (requestId.current !== id) return;
-      setPhoto(current =>
-        current?.blobUrl === localUrl ? { ...current, storageUrl } : current
-      );
-      setStatus("ready");
-      setStorageMessage(
-        "Original uploaded to project storage and ready for processing."
-      );
-    } catch (error) {
-      if (requestId.current !== id) return;
-      setStatus("error");
-      setStorageMessage(
-        error instanceof Error
-          ? error.message
-          : "Project storage transfer failed. Your photo remains in this tab only."
-      );
-    }
-  }
-
-  function handleRemove() {
-    requestId.current += 1;
-    releasePhotoUrls(photo);
-    setPhoto(null);
-    setStatus("empty");
-    setErrorMessage("");
-    setStorageMessage("");
-    setProgress(0);
+    setStatus("ready");
   }
 
   async function handleColorize() {
-    if (
-      !photo ||
-      photo.example ||
-      status === "processing" ||
-      status === "uploading"
-    )
-      return;
-    const currentRequest = requestId.current;
-    setErrorMessage("");
-    setDownloaded(false);
-    setStorageMessage(
-      photo.storageUrl
-        ? "Original saved. AI colorization is in progress…"
-        : "Colorizing this photo from your tab…"
-    );
+    if (!photo || photo.example || status === "processing") return;
+    const requestNumber = ++requestId.current;
     setStatus("processing");
-    setProgress(0);
-    for (const value of [16, 34, 54, 72, 86]) {
-      await new Promise(resolve => window.setTimeout(resolve, 330));
-      if (requestId.current !== currentRequest) return;
-      setProgress(value);
+    setErrorMessage("");
+    setMessage("Colorizing and saving this photo to your history…");
+    try {
+      const source = await fetch(photo.src).then(response => {
+        if (!response.ok)
+          throw new Error("The selected photo could not be opened.");
+        return response.blob();
+      });
+      const saved = await colorizePhoto(source, photo.name, style);
+      const result = await fetchPrivatePhoto(saved.id, "colorized");
+      if (requestId.current !== requestNumber) return;
+      const resultUrl = URL.createObjectURL(result);
+      objectUrls.current.add(resultUrl);
+      clearUrl(photo.resultSrc);
+      setPhoto(current => ({
+        ...current,
+        name: saved.title,
+        resultSrc: resultUrl,
+        historyId: saved.id,
+        style: saved.style,
+      }));
+      setStatus("complete");
+      setMessage("Colorized result saved to your private history.");
+      await utils.library.list.invalidate();
+    } catch (error) {
+      if (requestId.current !== requestNumber) return;
+      setStatus("error");
+      setMessage("");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "This photo could not be colorized."
+      );
     }
-    if (!photo.example) {
-      try {
-        const original = await fetch(photo.src);
-        if (!original.ok)
-          throw new Error("The uploaded photo could not be opened.");
-        const originalBlob = await original.blob();
-        if (requestId.current !== currentRequest) return;
-        const resultBlob = await requestColorization(originalBlob);
-        if (requestId.current !== currentRequest) return;
-        const resultSrc = URL.createObjectURL(resultBlob);
-        objectUrls.current.add(resultSrc);
-        setPhoto(current => {
-          if (!current || current.blobUrl !== photo.blobUrl) return current;
-          if (current.resultSrc && objectUrls.current.delete(current.resultSrc))
-            URL.revokeObjectURL(current.resultSrc);
-          return { ...current, resultSrc };
-        });
-        setStorageMessage(
-          photo.storageUrl
-            ? "Original and AI colorized result saved to project storage."
-            : "AI result saved; the original remains in this tab only."
-        );
-      } catch (error) {
-        if (requestId.current !== currentRequest) return;
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "The preview could not be prepared."
-        );
-        setStorageMessage(
-          photo.storageUrl
-            ? "Original saved. Colorization did not complete."
-            : "The original remains in this tab; colorization did not complete."
-        );
-        setStatus("error");
-        return;
-      }
-    }
-    setProgress(100);
-    setStatus("complete");
   }
 
   async function handleDownload() {
-    if (!photo) return;
-    try {
-      const image = new Image();
-      image.src = photo.resultSrc || photo.src;
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () =>
-          reject(new Error("The preview image could not be opened."));
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const context = canvas.getContext("2d");
-      if (!context)
-        throw new Error("Canvas download is not supported in this browser.");
-      context.drawImage(image, 0, 0);
-      canvas.toBlob(blob => {
-        if (!blob) return;
-        const link = document.createElement("a");
-        const downloadUrl = URL.createObjectURL(blob);
-        link.href = downloadUrl;
-        link.download = `${photo.name.replace(/\.[^.]+$/, "")}-color-preview.png`;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-        setDownloaded(true);
-      }, "image/png");
-    } catch {
-      setErrorMessage("We couldn't prepare this download. Please try again.");
-    }
+    if (!photo?.resultSrc) return;
+    const response = await fetch(photo.resultSrc);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const ext =
+      blob.type === "image/jpeg"
+        ? "jpg"
+        : blob.type === "image/webp"
+          ? "webp"
+          : "png";
+    link.download = `${photo.name.replace(/\.[^.]+$/, "")}-colorized.${ext}`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  const ready =
-    !!photo && (photo.example || !!photo.resultSrc || status === "complete");
-
+  const ready = !!photo && (photo.example || !!photo.resultSrc);
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="Reimagine home">
-          <span className="brand-symbol" aria-hidden="true">
-            <Aperture size={23} strokeWidth={1.7} />
-            <i />
-          </span>
-          <span className="brand-name">
-            re<span>imagine</span>
-          </span>
-        </a>
-        <nav className="top-nav" aria-label="Main navigation">
-          <a className="nav-link active" href="#studio">
-            Studio
-          </a>
-        </nav>
-        <div className="top-note">
-          <span className="live-dot" /> A little color, a lot of history.
-        </div>
-      </header>
-
+      <AppHeader active="studio" />
       <main id="top" className="workspace">
-        <section className="intro" id="studio">
+        <section className="intro">
           <div className="intro-copy">
             <div className="eyebrow">
               <span>YOUR PHOTO RESTORATION STUDIO</span>
@@ -333,7 +264,6 @@ export default function Home() {
             </span>
           </div>
         </section>
-
         <section
           className="studio-grid"
           aria-label="Photo restoration workspace"
@@ -353,7 +283,6 @@ export default function Home() {
                   className={`view-button ${viewMode === "compare" ? "selected" : ""}`}
                   onClick={() => setViewMode("compare")}
                   aria-pressed={viewMode === "compare"}
-                  aria-label="Show interactive comparison"
                 >
                   <PanelTop size={15} />
                   <span>Slide</span>
@@ -362,85 +291,37 @@ export default function Home() {
                   className={`view-button ${viewMode === "side" ? "selected" : ""}`}
                   onClick={() => setViewMode("side")}
                   aria-pressed={viewMode === "side"}
-                  aria-label="Show original and colorized side by side"
                 >
                   <Columns3 size={15} />
                   <span>Side by side</span>
                 </button>
               </div>
             </div>
-
-            {photo ? (
-              <PhotoComparison
-                photo={photo}
-                ready={ready}
-                status={status}
-                comparison={comparison}
-                onComparisonChange={setComparison}
-                viewMode={viewMode}
-              />
-            ) : (
-              <div className="empty-canvas">
-                <div className="empty-icon">
-                  <ImagePlus size={25} />
-                </div>
-                <p className="empty-title">
-                  Your next favorite memory goes here.
-                </p>
-                <p>
-                  Choose a black-and-white image and we’ll get the studio ready.
-                </p>
-              </div>
-            )}
-
+            <PhotoComparison
+              photo={photo}
+              ready={ready}
+              status={status}
+              comparison={comparison}
+              onComparisonChange={setComparison}
+              viewMode={viewMode}
+            />
             <div className="image-caption-row">
               <span className="photo-title">
                 <FileImage size={15} />
-                {photo ? photo.name : "No photo selected"}
+                {photo.name}
               </span>
-              {photo && (
-                <span className="photo-meta">{prettyBytes(photo.bytes)}</span>
-              )}
+              <span className="photo-meta">{prettyBytes(photo.bytes)}</span>
             </div>
-            {photo?.example && (
-              <div className="sample-note">
-                <Sparkles size={13} /> AI-colorized sample — colors are
-                estimates, not historical records.
-              </div>
-            )}
-            {!photo?.example && ready && (
-              <div className="sample-note">
-                <Sparkles size={13} /> AI color estimate — review each person’s
-                skin tone and important details.
-              </div>
-            )}
-            {status === "processing" && (
-              <div className="progress-inline" aria-live="polite">
-                <div className="progress-copy">
-                  <span>
-                    <LoaderCircle size={14} className="spin" /> Restoring color
-                    and preserving facial detail
-                  </span>
-                  <strong>{progress}%</strong>
-                </div>
-                <div className="progress-track">
-                  <span style={{ width: `${progress}%` }} />
-                </div>
-              </div>
-            )}
-            {downloaded && (
-              <p className="success-note" role="status">
-                <Check size={14} /> Your color preview is ready to keep.
-              </p>
-            )}
-            {errorMessage && (
-              <p className="error-note" role="alert">
-                <CircleAlert size={14} />
-                {errorMessage}
+            {(message || errorMessage) && (
+              <p
+                className={errorMessage ? "error-note" : "success-note"}
+                role={errorMessage ? "alert" : "status"}
+              >
+                {errorMessage ? <CircleAlert size={14} /> : <Check size={14} />}
+                {errorMessage || message}
               </p>
             )}
           </div>
-
           <aside className="control-rail" aria-label="Photo controls">
             <div className="rail-topline">
               <span className="step-number">02</span>
@@ -450,11 +331,10 @@ export default function Home() {
             <PhotoUploadPanel
               photo={photo}
               status={status}
-              storageMessage={storageMessage}
+              message={message}
               onFile={handleFile}
               onRemove={handleRemove}
             />
-
             <div className="restore-card">
               <div className="restore-card-head">
                 <span className="restore-icon">
@@ -468,18 +348,38 @@ export default function Home() {
                 Natural skin tones.
               </h3>
               <p>
-                AI estimates the scene’s color and is prompted to preserve
-                individual complexions, undertones, and facial detail.
+                Choose a restrained or richer pass, then inspect the saved
+                result in your history.
               </p>
+              <div
+                className="style-selector"
+                role="group"
+                aria-label="Color style"
+              >
+                <span>COLOR STYLE</span>
+                <div>
+                  <button
+                    type="button"
+                    className={style === "natural" ? "selected" : ""}
+                    aria-pressed={style === "natural"}
+                    onClick={() => setStyle("natural")}
+                  >
+                    Natural
+                  </button>
+                  <button
+                    type="button"
+                    className={style === "vivid" ? "selected" : ""}
+                    aria-pressed={style === "vivid"}
+                    onClick={() => setStyle("vivid")}
+                  >
+                    Vivid
+                  </button>
+                </div>
+              </div>
               <button
                 className="restore-button"
-                onClick={handleColorize}
-                disabled={
-                  !photo ||
-                  photo.example ||
-                  status === "processing" ||
-                  status === "uploading"
-                }
+                onClick={() => void handleColorize()}
+                disabled={!photo || photo.example || status === "processing"}
               >
                 {status === "processing" ? (
                   <>
@@ -497,55 +397,42 @@ export default function Home() {
                   </>
                 )}
               </button>
-              {status === "complete" && photo && !photo.example && (
+              {status === "complete" && !photo.example && (
                 <div className="ready-pill">
-                  <BadgeCheck size={14} /> AI colorized result{" "}
-                  <span>· review before saving</span>
+                  <BadgeCheck size={14} /> Saved to history
                 </div>
               )}
               <div className="model-disclosure">
-                <CircleAlert size={14} />
+                <Sparkles size={14} />
                 <span>
-                  Color and skin tones are AI estimates; review important
-                  details before keeping.
-                </span>
-              </div>
-              <div className="privacy-line">
-                <LockKeyhole size={13} />
-                <span>
-                  Your original is sent to the project’s image model only when
-                  you colorize.
+                  AI-assisted colorization, with Natural and Vivid treatments.
                 </span>
               </div>
             </div>
-
+            <BatchColorizer style={style} />
             <button
               className="download-button"
-              onClick={handleDownload}
+              onClick={() => void handleDownload()}
               disabled={!photo || !ready}
             >
               <span className="download-icon">
                 <ArrowDownToLine size={17} />
               </span>
               <span>
-                <strong>Download preview</strong>
-                <small>Save as a PNG</small>
+                <strong>Download colorized image</strong>
+                <small>Save the restored result</small>
               </span>
-              <ChevronRight size={17} className="download-chevron" />
+              <ChevronRight size={17} />
             </button>
-            <div className="rail-footnote">
-              <Clock3 size={13} /> A color pass takes just a moment.
-            </div>
           </aside>
         </section>
-
         <footer className="page-footer">
           <a className="footer-brand" href="#top">
             <Aperture size={16} /> reimagine
           </a>
           <span>Old photos, seen with new eyes.</span>
           <a href="#top" className="back-top">
-            Back to top <ArrowDownToLine size={13} className="back-top-icon" />
+            Back to top
           </a>
         </footer>
       </main>

@@ -1,0 +1,370 @@
+{
+  "version": "5",
+  "dialect": "mysql",
+  "id": "9a315b74-3f1b-4a3d-bc74-1fa8ed4c045b",
+  "prevId": "bd95a85e-2e49-4cb4-b28f-de49c4dd772f",
+  "tables": {
+    "password_credentials": {
+      "name": "password_credentials",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "salt": {
+          "name": "salt",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "passwordHash": {
+          "name": "passwordHash",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "password_credentials_user_unique": {
+          "name": "password_credentials_user_unique",
+          "columns": [
+            "userId"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "password_credentials_userId_users_id_fk": {
+          "name": "password_credentials_userId_users_id_fk",
+          "tableFrom": "password_credentials",
+          "tableTo": "users",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "password_credentials_id": {
+          "name": "password_credentials_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "photo_history": {
+      "name": "photo_history",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "userId": {
+          "name": "userId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batchId": {
+          "name": "batchId",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fileName": {
+          "name": "fileName",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "style": {
+          "name": "style",
+          "type": "enum('natural','vivid')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'natural'"
+        },
+        "originalPath": {
+          "name": "originalPath",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "originalMimeType": {
+          "name": "originalMimeType",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "resultPath": {
+          "name": "resultPath",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "resultMimeType": {
+          "name": "resultMimeType",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "favorite": {
+          "name": "favorite",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        },
+        "removedAt": {
+          "name": "removedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "photo_history_owner_created_idx": {
+          "name": "photo_history_owner_created_idx",
+          "columns": [
+            "userId",
+            "createdAt"
+          ],
+          "isUnique": false
+        },
+        "photo_history_owner_removed_idx": {
+          "name": "photo_history_owner_removed_idx",
+          "columns": [
+            "userId",
+            "removedAt"
+          ],
+          "isUnique": false
+        },
+        "photo_history_owner_batch_idx": {
+          "name": "photo_history_owner_batch_idx",
+          "columns": [
+            "userId",
+            "batchId"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "photo_history_userId_users_id_fk": {
+          "name": "photo_history_userId_users_id_fk",
+          "tableFrom": "photo_history",
+          "tableTo": "users",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "photo_history_id": {
+          "name": "photo_history_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "openId": {
+          "name": "openId",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loginMethod": {
+          "name": "loginMethod",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'email'"
+        },
+        "role": {
+          "name": "role",
+          "type": "enum('user','admin')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'user'"
+        },
+        "sessionVersion": {
+          "name": "sessionVersion",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        },
+        "lastSignedIn": {
+          "name": "lastSignedIn",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "users_openId_unique": {
+          "name": "users_openId_unique",
+          "columns": [
+            "openId"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {},
+    "indexes": {}
+  }
+}

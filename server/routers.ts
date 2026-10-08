@@ -1,28 +1,94 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
+import { z } from "zod";
+import {
+  clearSessionCookie,
+  changePassword,
+  createEmailAccount,
+  signInWithPassword,
+} from "./auth/emailPassword";
+import {
+  listPhotoHistory,
+  renamePhoto,
+  setPhotoFavorite,
+  softRemovePhoto,
+} from "./library";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+
+const credentials = z.object({
+  email: z.string().email().max(320),
+  password: z.string().min(12).max(128),
+});
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) =>
+      ctx.user
+        ? {
+            id: ctx.user.id,
+            email: ctx.user.email,
+            name: ctx.user.name,
+            role: ctx.user.role,
+          }
+        : null
+    ),
+    register: publicProcedure
+      .input(credentials)
+      .mutation(({ ctx, input }) =>
+        createEmailAccount(ctx.req, ctx.res, input.email, input.password)
+      ),
+    login: publicProcedure
+      .input(credentials)
+      .mutation(({ ctx, input }) =>
+        signInWithPassword(ctx.req, ctx.res, input.email, input.password)
+      ),
+    changePassword: protectedProcedure
+      .input(
+        z.object({
+          currentPassword: z.string().min(1).max(128),
+          newPassword: z.string().min(12).max(128),
+        })
+      )
+      .mutation(({ ctx, input }) =>
+        changePassword(
+          ctx.req,
+          ctx.res,
+          ctx.user,
+          input.currentPassword,
+          input.newPassword
+        )
+      ),
     logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      clearSessionCookie(ctx.req, ctx.res);
+      return { success: true as const };
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  library: router({
+    list: protectedProcedure
+      .input(
+        z.object({
+          search: z.string().max(100).optional(),
+          sort: z.enum(["newest", "oldest"]).default("newest"),
+          favoritesOnly: z.boolean().default(false),
+        })
+      )
+      .query(({ ctx, input }) => listPhotoHistory(ctx.user.id, input)),
+    rename: protectedProcedure
+      .input(
+        z.object({ id: z.string().uuid(), title: z.string().min(1).max(160) })
+      )
+      .mutation(({ ctx, input }) =>
+        renamePhoto(ctx.user.id, input.id, input.title)
+      ),
+    favorite: protectedProcedure
+      .input(z.object({ id: z.string().uuid(), favorite: z.boolean() }))
+      .mutation(({ ctx, input }) =>
+        setPhotoFavorite(ctx.user.id, input.id, input.favorite)
+      ),
+    remove: protectedProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(({ ctx, input }) => softRemovePhoto(ctx.user.id, input.id)),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

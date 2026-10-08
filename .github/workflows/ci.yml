@@ -45,8 +45,17 @@ jobs:
         run: >-
           pnpm exec prettier --check README.md TODO.md plan.md package.json
           .github/workflows/ci.yml app.config.ts client/index.html
-          client/public/manus-routes.json client/src/pages/Home.tsx
-          client/src/components/PhotoComparison.tsx
+          client/public/manus-routes.json client/src/App.tsx
+          client/src/main.tsx client/src/pages/Home.tsx
+          client/src/pages/Login.tsx client/src/pages/Library.tsx
+          client/src/pages/Account.tsx client/src/components/AppHeader.tsx
+          client/src/components/BatchColorizer.tsx
+          client/src/lib/photoApi.ts client/src/components/PhotoComparison.tsx
           client/src/components/PhotoUploadPanel.tsx client/src/index.css
-          server/_core/index.ts server/photoUpload.ts server/photoUpload.test.ts
-          server/demoAssets.test.ts
+          server/_core/index.ts server/_core/sdk.ts server/_core/sdk.test.ts
+          server/routers.ts server/auth/emailPassword.ts
+          server/auth/emailPassword.test.ts server/auth.logout.test.ts
+          server/library.ts server/privateMedia.ts server/privateMedia.test.ts
+          server/photoUpload.ts server/photoUpload.test.ts
+          server/demoAssets.test.ts drizzle/schema.ts drizzle/relations.ts
+          shared/const.ts

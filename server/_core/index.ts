@@ -2,19 +2,19 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
 import { publicPlatformScript } from "./publicConfig";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerPhotoUploadRoute } from "../photoUpload";
+import { registerPrivateMediaRoute } from "../privateMedia";
 
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Raw image routes parse their own bounded image bodies. tRPC only needs small JSON.
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ limit: "32kb", extended: true }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
   app.get("/api/platform/config.js", (_req, res) => {
     res
@@ -23,10 +23,17 @@ async function startServer() {
       .send(publicPlatformScript());
   });
   registerPhotoUploadRoute(app);
-  registerOAuthRoutes(app);
+  registerPrivateMediaRoute(app);
   // tRPC API
   app.use(
     "/api/trpc",
+    (req, res, next) => {
+      if (req.method === "POST" && req.get("x-reimagine-request") !== "1") {
+        res.status(403).json({ error: "Request not allowed." });
+        return;
+      }
+      next();
+    },
     createExpressMiddleware({
       router: appRouter,
       createContext,

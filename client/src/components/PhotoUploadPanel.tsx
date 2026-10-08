@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import {
-  Check,
+  BadgeCheck,
   CloudUpload,
+  CircleAlert,
   FileImage,
   ImagePlus,
-  Info,
   LoaderCircle,
   Trash2,
   Upload,
@@ -14,7 +14,7 @@ type PhotoSummary = { name: string; bytes?: number; example: boolean };
 type Props = {
   photo: PhotoSummary | null;
   status: string;
-  storageMessage: string;
+  message: string;
   onFile: (file: File) => void;
   onRemove: () => void;
 };
@@ -22,7 +22,7 @@ type Props = {
 export default function PhotoUploadPanel({
   photo,
   status,
-  storageMessage,
+  message,
   onFile,
   onRemove,
 }: Props) {
@@ -43,16 +43,21 @@ export default function PhotoUploadPanel({
     const file = event.dataTransfer.files[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setLocalError(
-        "That doesn’t look like an image. Try a JPEG, PNG, or WebP."
-      );
+      setLocalError("Choose a JPEG, PNG, or WebP photo.");
       return;
     }
     chooseFile(file);
   }
 
-  const storageFailed =
-    status === "error" && /storage|upload|transfer/i.test(storageMessage);
+  const statusText =
+    message ||
+    (status === "processing"
+      ? "Colorizing…"
+      : status === "complete"
+        ? "Saved to your history"
+        : status === "error"
+          ? "Colorization did not complete"
+          : "Ready to colorize");
 
   return (
     <section className="upload-panel" aria-labelledby="upload-heading">
@@ -61,8 +66,10 @@ export default function PhotoUploadPanel({
         {photo && !photo.example && (
           <button
             className="remove-photo"
+            type="button"
             onClick={onRemove}
-            aria-label="Remove photo"
+            aria-label="Remove photo from the current view"
+            title="Remove from this view; the saved history item stays in your library"
           >
             <Trash2 size={14} />
           </button>
@@ -86,7 +93,7 @@ export default function PhotoUploadPanel({
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="visually-hidden"
-          aria-label="Choose a black-and-white photo"
+          aria-label="Choose a photo"
           onChange={event => chooseFile(event.currentTarget.files?.[0])}
         />
         {photo && !photo.example ? (
@@ -104,6 +111,7 @@ export default function PhotoUploadPanel({
             </div>
             <button
               className="replace-button"
+              type="button"
               onClick={() => inputRef.current?.click()}
             >
               <Upload size={14} /> Replace
@@ -120,6 +128,7 @@ export default function PhotoUploadPanel({
             </div>
             <button
               className="browse-button"
+              type="button"
               onClick={() => inputRef.current?.click()}
             >
               <ImagePlus size={15} /> Browse files
@@ -142,24 +151,20 @@ export default function PhotoUploadPanel({
       )}
       {photo && !photo.example && (
         <div
-          className={`storage-state ${status === "uploading" ? "in-progress" : status === "ready" ? "stored" : storageFailed ? "storage-error" : ""}`}
+          className={`photo-state ${status === "processing" ? "in-progress" : status === "complete" ? "stored" : status === "error" ? "photo-error" : ""}`}
           role="status"
+          aria-live="polite"
         >
-          {status === "uploading" ? (
+          {status === "processing" ? (
             <LoaderCircle size={14} className="spin" />
-          ) : status === "ready" || status === "complete" ? (
-            <Check size={14} />
-          ) : storageFailed ? (
-            <CloudUpload size={14} />
+          ) : status === "complete" ? (
+            <BadgeCheck size={14} />
+          ) : status === "error" ? (
+            <CircleAlert size={14} />
           ) : (
             <FileImage size={14} />
           )}
-          <span>
-            {storageMessage ||
-              (status === "ready" || status === "complete"
-                ? "Saved to project storage"
-                : "Ready to colorize")}
-          </span>
+          <span>{statusText}</span>
         </div>
       )}
       {photo?.example && (
@@ -167,13 +172,6 @@ export default function PhotoUploadPanel({
           <span className="sample-mini-dot" /> An example is open — add your own
         </div>
       )}
-      <p className="photo-privacy-note">
-        <Info size={13} aria-hidden="true" />
-        <span>
-          No sign-in is provided. Colorizing sends your photo to AI, and
-          project-storage links aren’t private per user. Avoid sensitive photos.
-        </span>
-      </p>
     </section>
   );
 }

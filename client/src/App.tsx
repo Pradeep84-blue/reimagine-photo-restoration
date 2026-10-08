@@ -1,35 +1,60 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import Account from "@/pages/Account";
+import Home from "@/pages/Home";
+import Library from "@/pages/Library";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import { trpc } from "@/lib/trpc";
+
+function AccountGuard({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = trpc.auth.me.useQuery();
+  if (isLoading) {
+    return (
+      <main className="auth-loading" aria-live="polite">
+        <span className="loader-mark" aria-hidden="true" />
+        <span>Opening your studio…</span>
+      </main>
+    );
+  }
+  if (!user) return <Redirect to="/login" />;
+  return children;
+}
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
+      <Route path="/login" component={Login} />
+      <Route path="/">
+        <AccountGuard>
+          <Home />
+        </AccountGuard>
+      </Route>
+      <Route path="/library">
+        <AccountGuard>
+          <Library />
+        </AccountGuard>
+      </Route>
+      <Route path="/account">
+        <AccountGuard>
+          <Account />
+        </AccountGuard>
+      </Route>
+      <Route path="/404" component={NotFound} />
+      <Route>
+        <NotFound />
+      </Route>
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />
@@ -38,5 +63,3 @@ function App() {
     </ErrorBoundary>
   );
 }
-
-export default App;
