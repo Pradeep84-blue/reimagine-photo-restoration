@@ -176,7 +176,7 @@ export default function Home() {
     const requestNumber = ++requestId.current;
     setStatus("processing");
     setErrorMessage("");
-    setMessage("Colorizing and saving this photo to your history…");
+    setMessage("");
     try {
       const source = await fetch(photo.src).then(response => {
         if (!response.ok)
