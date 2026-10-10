@@ -56,9 +56,7 @@
       "indexes": {
         "password_credentials_user_unique": {
           "name": "password_credentials_user_unique",
-          "columns": [
-            "userId"
-          ],
+          "columns": ["userId"],
           "isUnique": true
         }
       },
@@ -67,12 +65,8 @@
           "name": "password_credentials_userId_users_id_fk",
           "tableFrom": "password_credentials",
           "tableTo": "users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -80,9 +74,7 @@
       "compositePrimaryKeys": {
         "password_credentials_id": {
           "name": "password_credentials_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -198,26 +190,17 @@
       "indexes": {
         "photo_history_owner_created_idx": {
           "name": "photo_history_owner_created_idx",
-          "columns": [
-            "userId",
-            "createdAt"
-          ],
+          "columns": ["userId", "createdAt"],
           "isUnique": false
         },
         "photo_history_owner_removed_idx": {
           "name": "photo_history_owner_removed_idx",
-          "columns": [
-            "userId",
-            "removedAt"
-          ],
+          "columns": ["userId", "removedAt"],
           "isUnique": false
         },
         "photo_history_owner_batch_idx": {
           "name": "photo_history_owner_batch_idx",
-          "columns": [
-            "userId",
-            "batchId"
-          ],
+          "columns": ["userId", "batchId"],
           "isUnique": false
         }
       },
@@ -226,12 +209,8 @@
           "name": "photo_history_userId_users_id_fk",
           "tableFrom": "photo_history",
           "tableTo": "users",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -239,9 +218,7 @@
       "compositePrimaryKeys": {
         "photo_history_id": {
           "name": "photo_history_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -331,9 +308,7 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -341,17 +316,13 @@
       "compositePrimaryKeys": {
         "users_id": {
           "name": "users_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {
         "users_openId_unique": {
           "name": "users_openId_unique",
-          "columns": [
-            "openId"
-          ]
+          "columns": ["openId"]
         }
       },
       "checkConstraint": {}

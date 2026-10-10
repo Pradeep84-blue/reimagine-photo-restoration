@@ -10,7 +10,7 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
-/** App-owned users. openId is a Reimagine identity, not a Manus OAuth id. */
+/** App-owned users. openId is an account identity. */
 export const users = mysqlTable(
   "users",
   {

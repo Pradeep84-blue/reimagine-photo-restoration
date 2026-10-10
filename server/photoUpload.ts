@@ -109,8 +109,8 @@ function validatePhotoBody(req: Request, res: Response, next: NextFunction) {
 }
 
 function platformCredentials() {
-  const apiUrl = process.env.MANUS_API_URL;
-  const apiKey = process.env.MANUS_API_KEY;
+  const apiUrl = process.env.API_URL || process.env.AI_API_URL;
+  const apiKey = process.env.API_KEY || process.env.AI_API_KEY;
   if (!apiUrl || !apiKey)
     throw new ColorizationError(
       503,

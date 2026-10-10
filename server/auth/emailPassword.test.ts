@@ -18,7 +18,7 @@ import {
 } from "./emailPassword";
 
 beforeEach(() => {
-  vi.stubEnv("MANUS_PROJECT_ID", "reimagine-auth-tests");
+  vi.stubEnv("PROJECT_ID", "reimagine-auth-tests");
   vi.stubEnv(
     "REIMAGINE_SESSION_SECRET",
     "app-session-secret-used-only-by-tests-not-production"

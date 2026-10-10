@@ -45,7 +45,7 @@ jobs:
         run: >-
           pnpm exec prettier --check README.md TODO.md plan.md package.json
           .github/workflows/ci.yml app.config.ts client/index.html
-          client/public/manus-routes.json client/src/App.tsx
+          client/public/routes.json client/src/App.tsx
           client/src/main.tsx client/src/pages/Home.tsx
           client/src/pages/Login.tsx client/src/lib/authErrors.ts
           client/src/pages/Library.tsx

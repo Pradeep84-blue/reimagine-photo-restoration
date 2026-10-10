@@ -87,8 +87,8 @@ function storagePathFromUrl(input: RequestInfo | URL) {
 
 describe("authenticated photo colorization and account history", () => {
   beforeEach(async () => {
-    vi.stubEnv("MANUS_API_URL", "https://api.example");
-    vi.stubEnv("MANUS_API_KEY", "test-runtime-key");
+    vi.stubEnv("API_URL", "https://api.example");
+    vi.stubEnv("API_KEY", "test-runtime-key");
     vi.mocked(sdk.authenticateRequest).mockResolvedValue(account);
     vi.mocked(createPhotoHistory).mockImplementation(
       async (record: NewPhotoHistory) => ({

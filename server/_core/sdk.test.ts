@@ -7,9 +7,9 @@ const APP_SECRET = "app-secret-for-tests-only-not-a-production-value";
 const PLATFORM_SECRET = "platform-secret-for-tests-only-not-a-production-value";
 
 beforeEach(() => {
-  vi.stubEnv("MANUS_PROJECT_ID", PROJECT_ID);
+  vi.stubEnv("PROJECT_ID", PROJECT_ID);
   vi.stubEnv("REIMAGINE_SESSION_SECRET", APP_SECRET);
-  vi.stubEnv("MANUS_JWT_SECRET", PLATFORM_SECRET);
+  vi.stubEnv("JWT_SECRET", PLATFORM_SECRET);
 });
 
 afterEach(() => {

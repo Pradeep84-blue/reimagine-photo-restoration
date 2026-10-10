@@ -2,9 +2,9 @@
 
 ## Product scope
 
-Reimagine is a polished restoration studio for turning old black-and-white photographs into color. Keep the existing upload and full-frame comparison workbench, true AI colorization, download workflow and synthetic example. Add open email/password accounts, a private per-account photo library, and batch colorizing. The user has expressly skipped Google OAuth.
+Reimagine is a polished restoration studio for turning old black-and-white photographs into color. Keep the existing upload and full-frame comparison workbench, true AI colorization, download workflow and synthetic example. Add open email/password accounts, a private per-account photo library, and batch colorizing.
 
-The user explicitly chose the less-secure account option: allow open email/password registration **without email verification or email-based password recovery**. No Resend or Google credentials are needed or should be requested. Each normalized email maps to one account. Provide an authenticated password-change action that requires the current password; clearly and briefly state that recovery is not available if a user loses access. Use Reimagine's own account session only, not Manus OAuth or the Preview-injected Manus session.
+Allow open email/password registration **without email verification or email-based password recovery**. No third-party credentials are needed or should be requested. Each normalized email maps to one account. Provide an authenticated password-change action that requires the current password; clearly and briefly state that recovery is not available if a user loses access. Use Reimagine's own account session only.
 
 The private account library includes search, date sorting, favorites, renaming, Natural/Vivid choices for a new color pass, before/after comparison and downloads. A new pass is stored as a separate history item rather than relabeling an existing result. History removal is account-scoped soft removal only because the platform’s runtime storage cannot physically delete bytes; disclose this when confirming removal and in the account/data policy.
 
@@ -15,9 +15,9 @@ Batch processing accepts up to **five** JPEG, PNG or WebP photos per batch, each
 ## Implementation approach
 
 - Continue on the initialized React 19, TypeScript, Vite and Express application. Preserve the Reimagine editorial style, synthetic comparison sample, natural-aspect-ratio framing and responsive, accessible studio.
-- The user has explicitly approved the one-way managed Database enablement. Keep Server enabled; use managed MySQL and deterministic, additive Drizzle migrations. Do not introduce another database, overwrite existing user data, or change the existing auto-publish-off state.
-- Implement application-owned email/password signup, login and logout. Use a database uniqueness constraint on normalized email addresses. Signup creates an ordinary `user` account and session immediately, because email verification was explicitly declined. Do not add Google, Manus or other provider login or identity linking.
-- Hash passwords with Node's built-in scrypt, unique random salts and constant-time verification. Rate-limit signup/login/password changes, bound request sizes, protect state-changing requests against CSRF, and never log credentials or session values. Sign Reimagine app sessions only with the dedicated protected `REIMAGINE_SESSION_SECRET`; keep platform-signed scheduled-work tickets on the platform key. The app cookie is HttpOnly, HTTPS-Preview compatible (`SameSite=None; Secure`) and distinct from Manus' injected session cookie; authenticate only Reimagine's cookie.
+- Use managed MySQL and deterministic, additive Drizzle migrations. Do not introduce another database, overwrite existing user data, or change the existing auto-publish-off state.
+- Implement application-owned email/password signup, login and logout. Use a database uniqueness constraint on normalized email addresses. Signup creates an ordinary `user` account and session immediately, because email verification was explicitly declined. Do not add external provider login or identity linking.
+- Hash passwords with Node's built-in scrypt, unique random salts and constant-time verification. Rate-limit signup/login/password changes, bound request sizes, protect state-changing requests against CSRF, and never log credentials or session values. Sign Reimagine app sessions only with the dedicated protected `REIMAGINE_SESSION_SECRET`; keep platform-signed scheduled-work tickets on the platform key. The app cookie is HttpOnly, HTTPS-compatible (`SameSite=None; Secure`); authenticate only Reimagine's cookie.
 - Include an Account page that allows a signed-in user to change a password after entering the current password. Do not include email verification, password-reset email or account recovery flows. Keep password fields concealed by default, with an explicit visibility toggle.
 - Require a valid Reimagine account session for upload/colorization, batch jobs, history, edits, downloads and image reads. Record each successful job's user ID, original/result storage keys, source filename, selected Natural/Vivid style, creation time, favorite, title and soft-removal state. Filter every read and mutation by the authenticated owner.
 - Validate file MIME type and magic bytes server-side, accept only JPEG/PNG/WebP, and enforce 15 MB per file for both single and batch requests. For each job, call the existing image service only after an explicit user action, persist the source and result under separate random storage keys, and add the account-owned history row. Return a photo ID, never an object path.
@@ -25,7 +25,7 @@ Batch processing accepts up to **five** JPEG, PNG or WebP photos per batch, each
 - Add an account library with search, date sort, favorites, rename, Natural/Vivid preset selection, before/after comparison, downloads and owner-only soft removal. Keep the database row hidden after removal while storage bytes remain; do not promise physical erasure.
 - Use a client-side batch queue capped at five; process sequentially, show per-item processing/completed/failed status, continue unaffected items and let a user retry failed items. Store every successful result as a separate item in the signed-in user's library.
 - Remove the named warning blocks and replace them with one calm AI disclosure adjacent to Colorize. Keep auth forms free of password-recovery notices; show the soft-removal limitation only at that action.
-- Synchronize `client/public/manus-routes.json` to the current page routes `/`, `/login`, `/library` and `/account`. Auth APIs, image APIs and media streams are not page routes.
+- Synchronize `client/public/routes.json` to the current page routes `/`, `/login`, `/library` and `/account`. Auth APIs, image APIs and media streams are not page routes.
 
 ## Project structure
 
@@ -63,4 +63,4 @@ Batch processing accepts up to **five** JPEG, PNG or WebP photos per batch, each
 
 ## Dependencies and constraints
 
-Use existing React, Express, Drizzle, MySQL, `jose` and Node built-in cryptography/fetch; avoid new runtime packages. Account login requires the protected, application-specific `REIMAGINE_SESSION_SECRET`; never reuse the platform-owned `MANUS_JWT_SECRET` for Reimagine sessions. The managed Database and app-specific secret are enabled through the approved project flows. No Google, Resend, email verification, email-based reset, physical storage deletion or publishing is included; `auto_publish` stays off.
+Use existing React, Express, Drizzle, MySQL, `jose` and Node built-in cryptography/fetch; avoid new runtime packages. Account login requires the protected, application-specific `REIMAGINE_SESSION_SECRET`. No external OAuth, email verification, email-based reset, physical storage deletion or publishing is included; `auto_publish` stays off.

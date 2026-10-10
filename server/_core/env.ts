@@ -1,21 +1,20 @@
-// Platform values are read at use time. See the Webdev service/authentication skills.
+// Environment configuration read dynamically at runtime.
 export const ENV = {
   get appId() {
-    return process.env.MANUS_PROJECT_ID ?? "";
+    return process.env.PROJECT_ID ?? "";
   },
   get cookieSecret() {
-    return process.env.MANUS_JWT_SECRET ?? "";
+    return process.env.JWT_SECRET ?? "";
   },
   get reimagineSessionSecret() {
-    return process.env.REIMAGINE_SESSION_SECRET ?? "";
+    return process.env.REIMAGINE_SESSION_SECRET ?? process.env.JWT_SECRET ?? "";
   },
   get databaseUrl() {
     return process.env.DATABASE_URL ?? "";
   },
   get oAuthServerUrl() {
-    return process.env.MANUS_OAUTH_API_URL ?? "";
+    return process.env.OAUTH_API_URL ?? "";
   },
-  // Preserve the legacy hint when supplied; otherwise roles remain application data.
   get ownerOpenId() {
     return process.env.OWNER_OPEN_ID ?? "";
   },
@@ -23,9 +22,9 @@ export const ENV = {
     return process.env.NODE_ENV === "production";
   },
   get forgeApiUrl() {
-    return process.env.MANUS_API_URL ?? "";
+    return process.env.API_URL ?? process.env.AI_API_URL ?? "";
   },
   get forgeApiKey() {
-    return process.env.MANUS_API_KEY ?? "";
+    return process.env.API_KEY ?? process.env.AI_API_KEY ?? "";
   },
 };

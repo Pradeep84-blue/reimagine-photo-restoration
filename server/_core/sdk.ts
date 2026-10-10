@@ -18,7 +18,7 @@ import type {
   GetUserInfoResponse,
   GetUserInfoWithJwtRequest,
   GetUserInfoWithJwtResponse,
-} from "./types/manusTypes";
+} from "./types/authTypes";
 // Utility function
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
@@ -161,7 +161,7 @@ class SDKServer {
     if (!secret) {
       throw new Error(
         owner === "platform"
-          ? "MANUS_JWT_SECRET is unavailable"
+          ? "JWT_SECRET is unavailable"
           : "REIMAGINE_SESSION_SECRET is unavailable"
       );
     }
@@ -352,7 +352,7 @@ function buildCronUser(
   return {
     id: -1,
     openId: userInfo.openId,
-    name: userInfo.name || "Manus Scheduled Task",
+    name: userInfo.name || "Scheduled Task",
     email: null,
     loginMethod: null,
     role: "user",
