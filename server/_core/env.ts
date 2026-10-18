@@ -27,4 +27,10 @@ export const ENV = {
   get forgeApiKey() {
     return process.env.API_KEY ?? process.env.AI_API_KEY ?? "";
   },
+  get cutoutProApiKey() {
+    return process.env.CUTOUT_PRO_API_KEY ?? "";
+  },
+  get cutoutProAllowedEmail() {
+    return process.env.CUTOUT_PRO_ALLOWED_EMAIL ?? "";
+  },
 };

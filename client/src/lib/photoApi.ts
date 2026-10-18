@@ -1,4 +1,5 @@
 export type ColorStyle = "natural" | "vivid";
+export type ColorizationProvider = "reimagine" | "cutout-pro";
 export type SavedPhoto = {
   id: string;
   title: string;
@@ -8,12 +9,95 @@ export type SavedPhoto = {
   createdAt: string | Date;
   batchId: string | null;
 };
+export type ColorizationModelOption = { id: string; label: string };
+export type ColorizationModelCatalog = {
+  models: ColorizationModelOption[];
+  defaultModelId: string;
+  cutoutProAvailable: boolean;
+  modelError?: string;
+};
+
+const MODEL_PREFERENCE_KEY = "reimagine-image-model";
+
+export function getPreferredImageModelId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(MODEL_PREFERENCE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setPreferredImageModelId(modelId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(MODEL_PREFERENCE_KEY, modelId);
+  } catch {
+    // Model choice remains usable for this page even if storage is unavailable.
+  }
+}
+
+export async function fetchColorizationModelCatalog(): Promise<ColorizationModelCatalog> {
+  const response = await fetch("/api/photos/models", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    models?: unknown;
+    defaultModelId?: unknown;
+    cutoutProAvailable?: unknown;
+    modelError?: unknown;
+    error?: unknown;
+  };
+  const models = Array.isArray(data.models)
+    ? data.models.filter(
+        (model): model is ColorizationModelOption =>
+          model !== null &&
+          typeof model === "object" &&
+          typeof (model as { id?: unknown }).id === "string" &&
+          typeof (model as { label?: unknown }).label === "string"
+      )
+    : [];
+  if (!response.ok) {
+    throw new Error(
+      typeof data.error === "string"
+        ? data.error
+        : response.status === 401
+          ? "Sign in again to load available image models."
+          : "Available image models could not be loaded."
+    );
+  }
+  const cutoutProAvailable = data.cutoutProAvailable === true;
+  if (!models.length && !cutoutProAvailable) {
+    throw new Error(
+      typeof data.error === "string"
+        ? data.error
+        : typeof data.modelError === "string"
+          ? data.modelError
+          : "No image models are currently available."
+    );
+  }
+  const defaultModelId =
+    typeof data.defaultModelId === "string" &&
+    models.some(model => model.id === data.defaultModelId)
+      ? data.defaultModelId
+      : (models[0]?.id ?? "");
+  return {
+    models,
+    defaultModelId,
+    cutoutProAvailable,
+    modelError:
+      typeof data.modelError === "string" ? data.modelError : undefined,
+  };
+}
 
 export async function colorizePhoto(
   file: Blob,
   fileName: string,
   style: ColorStyle,
-  batchId?: string
+  batchId?: string,
+  modelId?: string,
+  provider: ColorizationProvider = "reimagine"
 ): Promise<SavedPhoto> {
   const response = await fetch("/api/photos/colorize", {
     method: "POST",
@@ -22,8 +106,12 @@ export async function colorizePhoto(
       "Content-Type": file.type,
       "X-Reimagine-Request": "1",
       "X-Color-Style": style,
+      "X-Photo-Provider": provider,
       "X-Photo-Name": encodeURIComponent(fileName),
       ...(batchId ? { "X-Photo-Batch": batchId } : {}),
+      ...(provider === "reimagine" && modelId
+        ? { "X-Image-Model": modelId }
+        : {}),
     },
     body: file,
   });

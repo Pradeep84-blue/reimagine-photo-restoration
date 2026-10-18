@@ -9,7 +9,11 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { colorizePhoto, type ColorStyle } from "@/lib/photoApi";
+import {
+  colorizePhoto,
+  type ColorStyle,
+  type ColorizationProvider,
+} from "@/lib/photoApi";
 import { trpc } from "@/lib/trpc";
 
 const MAX_FILES = 5;
@@ -26,7 +30,17 @@ type BatchItem = {
   error?: string;
 };
 
-export default function BatchColorizer({ style }: { style: ColorStyle }) {
+export default function BatchColorizer({
+  provider,
+  style,
+  modelId,
+  modelLabel,
+}: {
+  provider: ColorizationProvider;
+  style: ColorStyle;
+  modelId: string;
+  modelLabel: string;
+}) {
   const utils = trpc.useUtils();
   const inputRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef<BatchItem[]>([]);
@@ -99,6 +113,12 @@ export default function BatchColorizer({ style }: { style: ColorStyle }) {
 
   async function processJobs(onlyIds?: string[]) {
     if (processingRef.current) return;
+    if (provider === "reimagine" && !modelId) {
+      setErrorMessage(
+        "Choose an available image model in the color pass above."
+      );
+      return;
+    }
     const pending = itemsRef.current.filter(
       item =>
         (!onlyIds || onlyIds.includes(item.id)) &&
@@ -116,8 +136,10 @@ export default function BatchColorizer({ style }: { style: ColorStyle }) {
         const saved = await colorizePhoto(
           item.file,
           item.file.name,
-          style,
-          batchId || undefined
+          provider === "cutout-pro" ? "natural" : style,
+          batchId || undefined,
+          provider === "reimagine" ? modelId : undefined,
+          provider
         );
         updateItem(item.id, { status: "complete", historyId: saved.id });
         await utils.library.list.invalidate();
@@ -167,8 +189,10 @@ export default function BatchColorizer({ style }: { style: ColorStyle }) {
         <div>
           <h3 id="batch-heading">Colorize a batch</h3>
           <p>
-            {style === "vivid" ? "Vivid color" : "Natural color"} · up to five
-            photos, one at a time.
+            {provider === "cutout-pro"
+              ? "Cutout.Pro standard pass"
+              : `${style === "vivid" ? "Vivid color" : "Natural color"} · ${modelLabel}`}
+            · up to five photos, one at a time.
           </p>
         </div>
       </div>
@@ -260,7 +284,7 @@ export default function BatchColorizer({ style }: { style: ColorStyle }) {
               <button
                 className="batch-run-button"
                 type="button"
-                disabled={running}
+                disabled={running || (provider === "reimagine" && !modelId)}
                 onClick={() => void processJobs()}
               >
                 {running ? (

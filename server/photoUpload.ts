@@ -7,6 +7,7 @@ import express, {
 } from "express";
 import type { ColorStyle } from "../drizzle/schema";
 import { createPhotoHistory } from "./library";
+import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -18,12 +19,52 @@ const ALLOWED_EXTENSIONS: Record<string, string> = {
 type PhotoKind = "original" | "colorized";
 type ImageModel = { model?: unknown; id?: unknown };
 type ImageResult = { url?: unknown; b64Json?: unknown; mimeType?: unknown };
+type AvailableImageModel = { id: string; model: string };
 type ImageResponse = {
   image?: ImageResult;
   models?: ImageModel[];
-  error?: { message?: string } | string;
+  error?: { code?: unknown; message?: unknown } | string;
+  code?: unknown;
+  message?: unknown;
 };
 type StoredImage = { bytes: Buffer; mimeType: string };
+
+export function hasCutoutProAccess(
+  accountEmail: string | null | undefined,
+  apiKey: string,
+  allowedEmail: string
+) {
+  const email = accountEmail?.trim().toLowerCase();
+  const allowlisted = allowedEmail.trim().toLowerCase();
+  return Boolean(
+    apiKey.trim() && email && allowlisted && email === allowlisted
+  );
+}
+
+function isUsageExhaustionResponse(data: ImageResponse) {
+  const nestedError =
+    data.error && typeof data.error === "object" ? data.error : undefined;
+  const code =
+    typeof data.code === "string"
+      ? data.code
+      : typeof nestedError?.code === "string"
+        ? nestedError.code
+        : "";
+  const message =
+    typeof data.message === "string"
+      ? data.message
+      : typeof nestedError?.message === "string"
+        ? nestedError.message
+        : typeof data.error === "string"
+          ? data.error
+          : "";
+
+  return (
+    code === "resource_exhausted" ||
+    code === "quota_exceeded" ||
+    (/usage|quota/i.test(message) && /exhaust|limit/i.test(message))
+  );
+}
 
 class ColorizationError extends Error {
   constructor(
@@ -109,8 +150,8 @@ function validatePhotoBody(req: Request, res: Response, next: NextFunction) {
 }
 
 function platformCredentials() {
-  const apiUrl = process.env.API_URL || process.env.AI_API_URL;
-  const apiKey = process.env.API_KEY || process.env.AI_API_KEY;
+  const apiUrl = ENV.forgeApiUrl;
+  const apiKey = ENV.forgeApiKey;
   if (!apiUrl || !apiKey)
     throw new ColorizationError(
       503,
@@ -203,7 +244,10 @@ async function readImageWithinLimit(response: globalThis.Response) {
   }
 }
 
-async function selectAvailableModel(apiUrl: string, apiKey: string) {
+async function listAvailableModels(
+  apiUrl: string,
+  apiKey: string
+): Promise<AvailableImageModel[]> {
   const response = await fetch(`${apiUrl}/images.v1.ImageService/ListModels`, {
     method: "POST",
     headers: imageServiceHeaders(apiKey),
@@ -211,22 +255,151 @@ async function selectAvailableModel(apiUrl: string, apiKey: string) {
     signal: AbortSignal.timeout(20_000),
   });
   const data = (await response.json().catch(() => ({}))) as ImageResponse;
-  if (!response.ok || data.error)
+  if (!response.ok || data.error || data.code || data.message) {
+    if (isUsageExhaustionResponse(data)) {
+      throw new ColorizationError(
+        503,
+        "The image service reports an account usage limit, so colorization is unavailable. Please contact the project owner."
+      );
+    }
     throw new ColorizationError(
       503,
       "The project's image models are unavailable right now. Please try again."
     );
-  const model = data.models?.find(
-    candidate =>
-      candidate.id === "gpt-image-2" && typeof candidate.model === "string"
+  }
+  return (data.models ?? []).flatMap(candidate =>
+    typeof candidate.id === "string" &&
+    candidate.id.trim() &&
+    typeof candidate.model === "string" &&
+    candidate.model.trim()
+      ? [{ id: candidate.id, model: candidate.model }]
+      : []
   );
-  if (!model || typeof model.model !== "string") {
+}
+
+function imageModelLabel(id: string) {
+  if (id === "gpt-image-2") return "GPT Image 2";
+  return id
+    .replace(/[-_]+/g, " ")
+    .replace(/\b[a-z]/g, character => character.toUpperCase());
+}
+
+async function selectAvailableModel(
+  apiUrl: string,
+  apiKey: string,
+  requestedModelId?: string
+) {
+  const models = await listAvailableModels(apiUrl, apiKey);
+  const selectedModel = requestedModelId
+    ? models.find(model => model.id === requestedModelId)
+    : (models.find(model => model.id === "gpt-image-2") ?? models[0]);
+  if (!selectedModel) {
+    if (requestedModelId) {
+      throw new ColorizationError(
+        400,
+        "The selected image model is no longer available. Refresh the model list and choose another."
+      );
+    }
     throw new ColorizationError(
       503,
-      "The natural-detail colorization model is not available for this project right now."
+      "No image models are currently available for this project."
     );
   }
-  return model.model;
+  return selectedModel.model;
+}
+
+async function getCutoutProResult(
+  photo: Buffer,
+  contentType: string,
+  apiKey: string
+): Promise<StoredImage> {
+  const form = new FormData();
+  const photoBytes = photo.buffer.slice(
+    photo.byteOffset,
+    photo.byteOffset + photo.byteLength
+  ) as ArrayBuffer;
+  form.append(
+    "file",
+    new Blob([photoBytes], { type: contentType }),
+    `reimagine-photo.${ALLOWED_EXTENSIONS[contentType]}`
+  );
+
+  let response: globalThis.Response;
+  try {
+    response = await fetch(
+      "https://www.cutout.pro/api/v1/matting?mattingType=19",
+      {
+        method: "POST",
+        headers: { APIKEY: apiKey },
+        body: form,
+        signal: AbortSignal.timeout(180_000),
+      }
+    );
+  } catch {
+    throw new ColorizationError(
+      503,
+      "Cutout.Pro could not be reached. Please try again shortly."
+    );
+  }
+
+  const responseMimeType = (response.headers.get("content-type") ?? "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (!response.ok || !responseMimeType.startsWith("image/")) {
+    const errorText = await response.text().catch(() => "");
+    let providerMessage = "";
+    try {
+      const data = JSON.parse(errorText) as {
+        msg?: unknown;
+        message?: unknown;
+      };
+      providerMessage =
+        typeof data.msg === "string"
+          ? data.msg
+          : typeof data.message === "string"
+            ? data.message
+            : "";
+    } catch {
+      // Do not expose raw provider responses to the account.
+    }
+    if (/insufficient balance|insufficient credit/i.test(providerMessage)) {
+      throw new ColorizationError(
+        503,
+        "Cutout.Pro has no available credits right now. Choose the primary provider or try again later."
+      );
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new ColorizationError(
+        503,
+        "Cutout.Pro could not authorize this request. Please contact the project owner."
+      );
+    }
+    if (response.status === 429) {
+      throw new ColorizationError(
+        503,
+        "Cutout.Pro is busy. Please try again shortly."
+      );
+    }
+    throw new ColorizationError(
+      502,
+      "Cutout.Pro could not colorize this photo. Please try again."
+    );
+  }
+
+  const bytes = await readImageWithinLimit(response);
+  const verifiedMimeType = imageTypeFromSignature(bytes);
+  if (
+    !verifiedMimeType ||
+    (ALLOWED_EXTENSIONS[responseMimeType] &&
+      responseMimeType !== verifiedMimeType)
+  ) {
+    throw new ColorizationError(
+      502,
+      "Cutout.Pro returned an unsupported photo format. Please try again."
+    );
+  }
+  return { bytes, mimeType: verifiedMimeType };
 }
 
 async function getModelResult(
@@ -265,7 +438,18 @@ async function getModelResult(
     }
   );
   const data = (await response.json().catch(() => ({}))) as ImageResponse;
-  if (!response.ok || data.error) {
+  if (
+    !response.ok ||
+    data.error ||
+    data.code ||
+    (data.message && !data.image)
+  ) {
+    if (isUsageExhaustionResponse(data)) {
+      throw new ColorizationError(
+        503,
+        "The image service reports an account usage limit, so colorization is unavailable. Please contact the project owner."
+      );
+    }
     if (response.status === 429)
       throw new ColorizationError(
         503,
@@ -367,6 +551,27 @@ async function getModelResult(
 
 type AccountRequest = Awaited<ReturnType<typeof sdk.authenticateRequest>>;
 
+function requireAccountSession(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  message: string
+) {
+  void sdk
+    .authenticateRequest(req)
+    .then(account => {
+      if (account.isCron || account.id <= 0) {
+        res.status(401).json({ error: message });
+        return;
+      }
+      res.locals.account = account;
+      next();
+    })
+    .catch(() => {
+      res.status(401).json({ error: message });
+    });
+}
+
 function requireAccountMutation(
   req: Request,
   res: Response,
@@ -376,19 +581,7 @@ function requireAccountMutation(
     res.status(403).json({ error: "This request could not be verified." });
     return;
   }
-  void sdk
-    .authenticateRequest(req)
-    .then(account => {
-      if (account.isCron || account.id <= 0) {
-        res.status(401).json({ error: "Sign in to colorize a photo." });
-        return;
-      }
-      res.locals.account = account;
-      next();
-    })
-    .catch(() => {
-      res.status(401).json({ error: "Sign in to colorize a photo." });
-    });
+  requireAccountSession(req, res, next, "Sign in to colorize a photo.");
 }
 
 function safePhotoName(headerValue: string | undefined) {
@@ -411,6 +604,66 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function registerPhotoUploadRoute(app: Express) {
+  app.get(
+    "/api/photos/models",
+    (req, res, next) => {
+      requireAccountSession(
+        req,
+        res,
+        next,
+        "Sign in to use Reimagine's photo tools."
+      );
+    },
+    async (_req, res) => {
+      const account = res.locals.account as AccountRequest;
+      const cutoutProAvailable = hasCutoutProAccess(
+        account.email,
+        ENV.cutoutProApiKey,
+        ENV.cutoutProAllowedEmail
+      );
+      try {
+        const { apiUrl, apiKey } = platformCredentials();
+        const models = await listAvailableModels(apiUrl, apiKey);
+        if (!models.length) {
+          throw new ColorizationError(
+            503,
+            "No image models are currently available for this project."
+          );
+        }
+        const defaultModel =
+          models.find(model => model.id === "gpt-image-2") ?? models[0]!;
+        res.setHeader("Cache-Control", "private, no-store");
+        res.status(200).json({
+          models: models.map(model => ({
+            id: model.id,
+            label: imageModelLabel(model.id),
+          })),
+          defaultModelId: defaultModel.id,
+          cutoutProAvailable,
+        });
+      } catch (error) {
+        const failure =
+          error instanceof ColorizationError
+            ? error
+            : new ColorizationError(
+                503,
+                "Available image models could not be loaded."
+              );
+        res.setHeader("Cache-Control", "private, no-store");
+        if (cutoutProAvailable) {
+          res.status(200).json({
+            models: [],
+            defaultModelId: "",
+            cutoutProAvailable: true,
+            modelError: failure.message,
+          });
+          return;
+        }
+        res.status(failure.status).json({ error: failure.message });
+      }
+    }
+  );
+
   app.post(
     "/api/photos/colorize",
     requireAccountMutation,
@@ -427,6 +680,26 @@ export function registerPhotoUploadRoute(app: Express) {
         return;
       }
       const style: ColorStyle = styleHeader;
+      const provider = req.get("x-photo-provider") ?? "reimagine";
+      if (provider !== "reimagine" && provider !== "cutout-pro") {
+        res
+          .status(400)
+          .json({ error: "Choose an available colorization provider." });
+        return;
+      }
+      if (
+        provider === "cutout-pro" &&
+        !hasCutoutProAccess(
+          account.email,
+          ENV.cutoutProApiKey,
+          ENV.cutoutProAllowedEmail
+        )
+      ) {
+        res
+          .status(403)
+          .json({ error: "Cutout.Pro is not available for this account." });
+        return;
+      }
       const batchIdHeader = req.get("x-photo-batch");
       if (batchIdHeader && !UUID_PATTERN.test(batchIdHeader)) {
         res.status(400).json({ error: "The batch identifier is invalid." });
@@ -440,16 +713,35 @@ export function registerPhotoUploadRoute(app: Express) {
           .slice(0, 160) || "Colorized photo";
 
       try {
-        const { apiUrl, apiKey } = platformCredentials();
-        const model = await selectAvailableModel(apiUrl, apiKey);
-        const result = await getModelResult(
-          apiUrl,
-          apiKey,
-          model,
-          photo,
-          contentType,
-          style
-        );
+        let apiUrl = "";
+        let apiKey = "";
+        let result: StoredImage;
+        let storedStyle: ColorStyle = style;
+        if (provider === "cutout-pro") {
+          result = await getCutoutProResult(
+            photo,
+            contentType,
+            ENV.cutoutProApiKey
+          );
+          storedStyle = "natural";
+          ({ apiUrl, apiKey } = platformCredentials());
+        } else {
+          ({ apiUrl, apiKey } = platformCredentials());
+          const requestedModelId = req.get("x-image-model")?.trim();
+          const model = await selectAvailableModel(
+            apiUrl,
+            apiKey,
+            requestedModelId || undefined
+          );
+          result = await getModelResult(
+            apiUrl,
+            apiKey,
+            model,
+            photo,
+            contentType,
+            style
+          );
+        }
         const id = randomUUID();
         const [originalPath, resultPath] = await Promise.all([
           storePhotoAsset(
@@ -475,7 +767,7 @@ export function registerPhotoUploadRoute(app: Express) {
           batchId: batchIdHeader ?? null,
           fileName,
           title,
-          style,
+          style: storedStyle,
           originalPath,
           originalMimeType: contentType,
           resultPath,

@@ -53,7 +53,7 @@ jobs:
           client/src/components/BatchColorizer.tsx
           client/src/lib/photoApi.ts client/src/components/PhotoComparison.tsx
           client/src/components/PhotoUploadPanel.tsx client/src/index.css
-          server/_core/index.ts server/_core/sdk.ts server/_core/sdk.test.ts
+          server/_core/index.ts server/_core/env.ts server/_core/sdk.ts server/_core/sdk.test.ts
           server/routers.ts server/auth/emailPassword.ts
           server/auth/emailPassword.test.ts server/authErrorMessages.test.ts
           server/auth.logout.test.ts

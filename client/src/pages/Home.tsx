@@ -10,7 +10,6 @@ import {
   Columns3,
   FileImage,
   ImagePlus,
-  LoaderCircle,
   PanelTop,
   Sparkles,
 } from "lucide-react";
@@ -20,8 +19,13 @@ import PhotoComparison from "@/components/PhotoComparison";
 import PhotoUploadPanel from "@/components/PhotoUploadPanel";
 import {
   colorizePhoto,
+  fetchColorizationModelCatalog,
   fetchPrivatePhoto,
+  getPreferredImageModelId,
+  setPreferredImageModelId,
   type ColorStyle,
+  type ColorizationProvider,
+  type ColorizationModelOption,
 } from "@/lib/photoApi";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
@@ -61,11 +65,62 @@ export default function Home() {
   const [comparison, setComparison] = useState(53);
   const [viewMode, setViewMode] = useState<ViewMode>("compare");
   const [style, setStyle] = useState<ColorStyle>("natural");
+  const [provider, setProvider] = useState<ColorizationProvider>("reimagine");
+  const [cutoutProAvailable, setCutoutProAvailable] = useState(false);
+  const [modelOptions, setModelOptions] = useState<ColorizationModelOption[]>(
+    []
+  );
+  const [selectedModelId, setSelectedModelId] = useState("");
+  const [modelLoading, setModelLoading] = useState(true);
+  const [modelError, setModelError] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [message, setMessage] = useState("");
   const objectUrls = useRef(new Set<string>());
   const requestId = useRef(0);
   const [location] = useLocation();
+
+  useEffect(() => {
+    let active = true;
+    void fetchColorizationModelCatalog()
+      .then(catalog => {
+        if (!active) return;
+        setModelOptions(catalog.models);
+        setCutoutProAvailable(catalog.cutoutProAvailable);
+        setModelError(catalog.modelError ?? "");
+        if (!catalog.models.length) {
+          setSelectedModelId("");
+          return;
+        }
+        const preferredModelId = getPreferredImageModelId();
+        const preferredIsAvailable = catalog.models.some(
+          model => model.id === preferredModelId
+        );
+        if (preferredModelId && !preferredIsAvailable) {
+          setSelectedModelId(preferredModelId);
+          setModelError(
+            "Your previously selected model is no longer available. Choose another model."
+          );
+          return;
+        }
+        const nextModelId = preferredModelId ?? catalog.defaultModelId;
+        setSelectedModelId(nextModelId);
+        setPreferredImageModelId(nextModelId);
+      })
+      .catch(error => {
+        if (!active) return;
+        setModelError(
+          error instanceof Error
+            ? error.message
+            : "Available image models could not be loaded."
+        );
+      })
+      .finally(() => {
+        if (active) setModelLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(
     () => () => objectUrls.current.forEach(url => URL.revokeObjectURL(url)),
@@ -173,6 +228,17 @@ export default function Home() {
 
   async function handleColorize() {
     if (!photo || photo.example || status === "processing") return;
+    if (
+      provider === "reimagine" &&
+      !modelOptions.some(model => model.id === selectedModelId)
+    ) {
+      setErrorMessage("Choose an available image model before colorizing.");
+      return;
+    }
+    if (provider === "cutout-pro" && !cutoutProAvailable) {
+      setErrorMessage("Cutout.Pro is not available for this account.");
+      return;
+    }
     const requestNumber = ++requestId.current;
     setStatus("processing");
     setErrorMessage("");
@@ -183,7 +249,14 @@ export default function Home() {
           throw new Error("The selected photo could not be opened.");
         return response.blob();
       });
-      const saved = await colorizePhoto(source, photo.name, style);
+      const saved = await colorizePhoto(
+        source,
+        photo.name,
+        provider === "cutout-pro" ? "natural" : style,
+        undefined,
+        provider === "reimagine" ? selectedModelId : undefined,
+        provider
+      );
       const result = await fetchPrivatePhoto(saved.id, "colorized");
       if (requestId.current !== requestNumber) return;
       const resultUrl = URL.createObjectURL(result);
@@ -230,6 +303,10 @@ export default function Home() {
   }
 
   const ready = !!photo && (photo.example || !!photo.resultSrc);
+  const selectedModel = modelOptions.find(
+    model => model.id === selectedModelId
+  );
+  const selectedModelAvailable = Boolean(selectedModel);
   return (
     <div className="app-shell">
       <AppHeader active="studio" />
@@ -305,6 +382,14 @@ export default function Home() {
               onComparisonChange={setComparison}
               viewMode={viewMode}
             />
+            {status === "processing" && (
+              <div className="photo-processing-progress" role="status">
+                <span className="visually-hidden">Colorizing photo</span>
+                <span className="photo-processing-track" aria-hidden="true">
+                  <span className="photo-processing-line" />
+                </span>
+              </div>
+            )}
             <div className="image-caption-row">
               <span className="photo-title">
                 <FileImage size={15} />
@@ -342,49 +427,134 @@ export default function Home() {
                 </span>
                 <span>THE COLOR PASS</span>
               </div>
-              <h3>
-                Vivid color.
-                <br />
-                Natural skin tones.
-              </h3>
+              <h3>Bring the scene back to life.</h3>
               <p>
-                Choose a restrained or richer pass, then inspect the saved
-                result in your history.
+                {provider === "cutout-pro"
+                  ? "Use Cutout.Pro as a manual backup colorizer."
+                  : "Choose a restrained or richer pass, then inspect the saved result in your history."}
               </p>
-              <div
-                className="style-selector"
-                role="group"
-                aria-label="Color style"
-              >
-                <span>COLOR STYLE</span>
-                <div>
-                  <button
-                    type="button"
-                    className={style === "natural" ? "selected" : ""}
-                    aria-pressed={style === "natural"}
-                    onClick={() => setStyle("natural")}
-                  >
-                    Natural
-                  </button>
-                  <button
-                    type="button"
-                    className={style === "vivid" ? "selected" : ""}
-                    aria-pressed={style === "vivid"}
-                    onClick={() => setStyle("vivid")}
-                  >
-                    Vivid
-                  </button>
-                </div>
+              <div className="provider-selector">
+                <label htmlFor="colorization-provider">PROVIDER</label>
+                <select
+                  id="colorization-provider"
+                  value={provider}
+                  disabled={status === "processing"}
+                  onChange={event => {
+                    const nextProvider = event.currentTarget
+                      .value as ColorizationProvider;
+                    setProvider(nextProvider);
+                    setErrorMessage("");
+                    setModelError("");
+                    if (nextProvider === "cutout-pro") setStyle("natural");
+                  }}
+                >
+                  <option value="reimagine">Reimagine AI</option>
+                  {cutoutProAvailable && (
+                    <option value="cutout-pro">
+                      Cutout.Pro · manual backup
+                    </option>
+                  )}
+                </select>
+                <small>
+                  {provider === "cutout-pro"
+                    ? "Manual choice only. Reimagine will not switch providers automatically."
+                    : "Default provider. No backup is contacted unless you select it."}
+                </small>
               </div>
+              {provider === "reimagine" ? (
+                <div className="model-selector">
+                  <label htmlFor="colorization-model">AI MODEL</label>
+                  <select
+                    id="colorization-model"
+                    value={selectedModelId}
+                    disabled={modelLoading || !modelOptions.length}
+                    onChange={event => {
+                      const nextModelId = event.currentTarget.value;
+                      setSelectedModelId(nextModelId);
+                      setPreferredImageModelId(nextModelId);
+                      setModelError("");
+                    }}
+                  >
+                    {selectedModelId && !selectedModelAvailable && (
+                      <option value={selectedModelId} disabled>
+                        Previously selected model (unavailable)
+                      </option>
+                    )}
+                    {modelOptions.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                  {modelLoading ? (
+                    <small>Loading available models…</small>
+                  ) : modelError ? (
+                    <small className="model-selector-error" role="alert">
+                      {modelError}
+                    </small>
+                  ) : (
+                    <small>
+                      Choice applies to single photos, library passes and
+                      batches.
+                    </small>
+                  )}
+                </div>
+              ) : (
+                <div className="provider-model-note">
+                  <span>MODEL</span>
+                  <strong>Cutout.Pro Colorizer</strong>
+                  <small>
+                    One standard color pass; no model choice required.
+                  </small>
+                </div>
+              )}
+              {provider === "reimagine" ? (
+                <div
+                  className="style-selector"
+                  role="group"
+                  aria-label="Color style"
+                >
+                  <span>COLOR STYLE</span>
+                  <div>
+                    <button
+                      type="button"
+                      className={style === "natural" ? "selected" : ""}
+                      aria-pressed={style === "natural"}
+                      onClick={() => setStyle("natural")}
+                    >
+                      Natural
+                    </button>
+                    <button
+                      type="button"
+                      className={style === "vivid" ? "selected" : ""}
+                      aria-pressed={style === "vivid"}
+                      onClick={() => setStyle("vivid")}
+                    >
+                      Vivid
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="provider-model-note provider-pass-note">
+                  <span>COLOR PASS</span>
+                  <strong>Standard</strong>
+                  <small>Cutout.Pro applies its own color treatment.</small>
+                </div>
+              )}
               <button
                 className="restore-button"
                 onClick={() => void handleColorize()}
-                disabled={!photo || photo.example || status === "processing"}
+                disabled={
+                  !photo ||
+                  photo.example ||
+                  status === "processing" ||
+                  (provider === "reimagine" &&
+                    (modelLoading || !selectedModelAvailable)) ||
+                  (provider === "cutout-pro" && !cutoutProAvailable)
+                }
               >
                 {status === "processing" ? (
-                  <>
-                    <LoaderCircle size={17} className="spin" /> Colorizing photo
-                  </>
+                  <>Colorizing photo</>
                 ) : photo?.example ? (
                   <>
                     <ImagePlus size={16} /> Add a photo to begin{" "}
@@ -405,11 +575,11 @@ export default function Home() {
               <div className="model-disclosure">
                 <Sparkles size={14} />
                 <span>
-                  AI-assisted colorization, with Natural and Vivid treatments.
+                  AI-assisted colorization. Choose the provider and pass before
+                  colorizing.
                 </span>
               </div>
             </div>
-            <BatchColorizer style={style} />
             <button
               className="download-button"
               onClick={() => void handleDownload()}
@@ -424,6 +594,24 @@ export default function Home() {
               </span>
               <ChevronRight size={17} />
             </button>
+            <div className="tool-separator" aria-hidden="true">
+              <span>OR COLORIZE A BATCH</span>
+              <span className="rail-line" />
+            </div>
+            <BatchColorizer
+              provider={provider}
+              style={style}
+              modelId={
+                provider === "reimagine" && selectedModelAvailable
+                  ? selectedModelId
+                  : ""
+              }
+              modelLabel={
+                provider === "cutout-pro"
+                  ? "Cutout.Pro Colorizer"
+                  : (selectedModel?.label ?? "Choose a model")
+              }
+            />
           </aside>
         </section>
         <footer className="page-footer">

@@ -64,3 +64,7 @@ Batch processing accepts up to **five** JPEG, PNG or WebP photos per batch, each
 ## Dependencies and constraints
 
 Use existing React, Express, Drizzle, MySQL, `jose` and Node built-in cryptography/fetch; avoid new runtime packages. Account login requires the protected, application-specific `REIMAGINE_SESSION_SECRET`. No external OAuth, email verification, email-based reset, physical storage deletion or publishing is included; `auto_publish` stays off.
+
+## Manual backup-provider and Studio-flow update
+
+Keep the current ImageService as the default and offer Cutout.Pro only as an explicit manual backup for the signed-in owner/test account whose normalized email matches the protected allowlist. Keep the API key server-only and never auto-fallback. Use Cutout.Pro's documented binary image response through multipart field `file`, the `APIKEY` header and `mattingType=19`; validate the output before saving it through the existing owner-linked private history flow. Cutout.Pro uses its standard pass, so do not show irrelevant model or color-style controls for that provider. Propagate provider/model selections through one-photo jobs, sequential batches and failed-item retries. The Studio path is Upload → Provider → Model → Color pass/style → Colorize → Download, with full-frame preview and the thin animated processing line beneath it.
